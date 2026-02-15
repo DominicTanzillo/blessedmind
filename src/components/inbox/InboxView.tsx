@@ -34,8 +34,15 @@ export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, o
 
   const incomplete = filtered.filter(t => !t.completed)
   const completed = filtered.filter(t => t.completed)
-  const totalIncomplete = tasks.filter(t => !t.completed).length
-  const totalCompleted = tasks.filter(t => t.completed).length
+  const totalTasks = tasks.length
+  const processedThisWeek = useMemo(() => {
+    const now = new Date()
+    const day = now.getDay()
+    const monday = new Date(now)
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1))
+    monday.setHours(0, 0, 0, 0)
+    return tasks.filter(t => t.completed && t.completed_at && new Date(t.completed_at) >= monday).length
+  }, [tasks])
 
   return (
     <div className="space-y-4">
@@ -104,9 +111,9 @@ export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, o
 
       <div className="text-center pt-2 space-y-1">
         <p className="text-xs text-stone-400">
-          {totalIncomplete} open loop{totalIncomplete !== 1 ? 's' : ''} &middot; {totalCompleted} processed
+          {totalTasks} open loop{totalTasks !== 1 ? 's' : ''} &middot; {processedThisWeek} processed this week
         </p>
-        {totalIncomplete > 0 && (
+        {totalTasks > 0 && (
           <p className="text-xs text-stone-400 italic">
             All are safely held. Your focus reveals only what the day requires.
           </p>

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { HashRouter, Routes, Route } from 'react-router'
 import { useAuth } from './hooks/useAuth'
 import { useTasks } from './hooks/useTasks'
@@ -29,6 +29,14 @@ export default function App() {
   const handleEdit = useCallback((id: string, updates: Partial<typeof tasks[0]>) => {
     updateTask(id, updates)
   }, [updateTask])
+
+  useEffect(() => {
+    if (authenticated && 'serviceWorker' in navigator) {
+      import('virtual:pwa-register').then(({ registerSW }) => {
+        registerSW({ immediate: true })
+      })
+    }
+  }, [authenticated])
 
   if (!authenticated) {
     return <PasswordGate onLogin={login} error={error} />

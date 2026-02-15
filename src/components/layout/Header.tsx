@@ -1,5 +1,17 @@
+import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
 import BreathingDot from '../ui/BreathingDot'
+
+function useShowInstall() {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+    const isStandalone = ('standalone' in navigator && (navigator as { standalone?: boolean }).standalone === true)
+      || window.matchMedia('(display-mode: standalone)').matches
+    setShow(isIOS && !isStandalone)
+  }, [])
+  return show
+}
 
 interface Props {
   onLogout: () => void
@@ -8,6 +20,7 @@ interface Props {
 
 export default function Header({ onLogout, taskCount }: Props) {
   const { pathname } = useLocation()
+  const showInstall = useShowInstall()
 
   const linkClass = (path: string) =>
     `px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
@@ -36,12 +49,19 @@ export default function Header({ onLogout, taskCount }: Props) {
           </Link>
         </nav>
 
-        <button
-          onClick={onLogout}
-          className="text-xs text-stone-300 hover:text-stone-500 transition"
-        >
-          Lock
-        </button>
+        <div className="flex items-center gap-2">
+          {showInstall && pathname === '/inbox' && (
+            <span className="text-xs text-sage-400">
+              Share → Add to Home Screen
+            </span>
+          )}
+          <button
+            onClick={onLogout}
+            className="text-xs text-stone-300 hover:text-stone-500 transition"
+          >
+            Lock
+          </button>
+        </div>
       </div>
     </header>
   )
