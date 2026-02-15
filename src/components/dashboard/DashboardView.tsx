@@ -169,7 +169,7 @@ export default function DashboardView({
           ))}
         </div>
         <p className="text-stone-400 text-xs">
-          {completedInBatch} of {batchTasks.length} &middot; {totalIncomplete} total in your mind
+          {completedInBatch} of {batchTasks.length}
         </p>
       </div>
 
