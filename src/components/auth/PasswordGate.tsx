@@ -2,14 +2,25 @@ import { useState, type FormEvent } from 'react'
 import { playWelcome } from '../../lib/sounds'
 
 const VERSES = [
-  { text: 'Come to me, all who are weary and heavy laden,\nand I will give you rest.', ref: 'Matthew 11:28' },
-  { text: 'Be still, and know that I am God.', ref: 'Psalm 46:10' },
-  { text: 'Cast all your anxieties on Him,\nbecause He cares for you.', ref: '1 Peter 5:7' },
-  { text: 'The Lord is my shepherd;\nI shall not want. He makes me lie down\nin green pastures.', ref: 'Psalm 23:1-2' },
-  { text: 'Peace I leave with you;\nmy peace I give to you.\nNot as the world gives do I give to you.', ref: 'John 14:27' },
-  { text: 'Do not be anxious about anything,\nbut in everything by prayer\nand supplication with thanksgiving\nlet your requests be made known to God.', ref: 'Philippians 4:6' },
-  { text: 'For I know the plans I have for you,\ndeclares the Lord,\nplans for welfare and not for evil,\nto give you a future and a hope.', ref: 'Jeremiah 29:11' },
-  { text: 'Trust in the Lord with all your heart,\nand do not lean on your own understanding.', ref: 'Proverbs 3:5' },
+  // Ora et Labora — pray and work
+  { text: 'Ora et Labora.\nPray and work.', ref: 'Rule of St. Benedict' },
+  { text: 'Whatever you do, work heartily,\nas for the Lord and not for men.', ref: 'Colossians 3:23' },
+  { text: 'Commit your work to the Lord,\nand your plans will be established.', ref: 'Proverbs 16:3' },
+  { text: 'Whatever your hand finds to do,\ndo it with all your might.', ref: 'Ecclesiastes 9:10' },
+  { text: 'The soul of the sluggard craves\nand gets nothing,\nwhile the soul of the diligent\nis richly supplied.', ref: 'Proverbs 13:4' },
+  { text: 'Do not grow weary of doing good,\nfor in due season we will reap,\nif we do not give up.', ref: 'Galatians 6:9' },
+  { text: 'Laborare est orare.\nTo work is to pray.', ref: 'Benedictine motto' },
+  { text: 'The harvest is plentiful,\nbut the laborers are few.', ref: 'Matthew 9:37' },
+  { text: 'He who began a good work in you\nwill bring it to completion.', ref: 'Philippians 1:6' },
+  { text: 'I can do all things through Him\nwho strengthens me.', ref: 'Philippians 4:13' },
+  { text: 'Well done, good and faithful servant.\nYou have been faithful over a little;\nI will set you over much.', ref: 'Matthew 25:21' },
+  { text: 'In all toil there is profit,\nbut mere talk tends only to poverty.', ref: 'Proverbs 14:23' },
+  { text: 'The plans of the diligent\nlead surely to abundance.', ref: 'Proverbs 21:5' },
+  { text: 'Unless the Lord builds the house,\nthose who build it labor in vain.', ref: 'Psalm 127:1' },
+  { text: 'Be steadfast, immovable,\nalways abounding in the work of the Lord,\nknowing that your labor\nis not in vain.', ref: '1 Corinthians 15:58' },
+  { text: 'Start by doing what is necessary;\nthen do what is possible;\nand suddenly you are doing\nthe impossible.', ref: 'St. Francis of Assisi' },
+  { text: 'Take therefore no thought for the morrow:\nfor the morrow shall take thought\nfor the things of itself.\nSufficient unto the day\nis the evil thereof.', ref: 'Matthew 6:34' },
+  { text: 'God does not ask for\nthe impossible,\nbut wants you to do what you can.', ref: 'St. Alphonsus Liguori' },
 ]
 
 function getVerse() {
