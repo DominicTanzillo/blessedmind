@@ -190,15 +190,16 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
 
   return (
     <div className={`flex items-start gap-3 p-3 rounded-xl transition group ${
-      task.completed ? 'opacity-50' : 'hover:bg-white'
+      task.completed ? 'opacity-60 hover:opacity-100' : 'hover:bg-white'
     }`}>
       <button
         onClick={() => { if (task.completed) { onUncomplete(task.id) } else { playComplete(); onComplete(task.id) } }}
         className={`mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition ${
           task.completed
-            ? 'bg-complete border-complete text-white'
+            ? 'bg-complete border-complete text-white hover:bg-complete/60 hover:border-complete/60'
             : 'border-stone-300 hover:border-sage-400'
         }`}
+        title={task.completed ? 'Undo completion' : 'Complete'}
       >
         {task.completed && (
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

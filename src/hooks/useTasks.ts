@@ -63,8 +63,27 @@ export function useTasks() {
   }, [updateTask])
 
   const uncompleteTask = useCallback(async (id: string) => {
-    await updateTask(id, { completed: false, completed_at: null })
-  }, [updateTask])
+    const task = tasks.find(t => t.id === id)
+
+    if (task?.steps && task.steps.length > 0) {
+      // Reopen the last completed step
+      const lastCompletedIndex = [...task.steps]
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) => s.completed)
+        .pop()?.i
+
+      if (lastCompletedIndex !== undefined) {
+        const updatedSteps: Step[] = task.steps.map((s, i) =>
+          i === lastCompletedIndex ? { ...s, completed: false } : s
+        )
+        await updateTask(id, { steps: updatedSteps, completed: false, completed_at: null })
+      } else {
+        await updateTask(id, { completed: false, completed_at: null })
+      }
+    } else {
+      await updateTask(id, { completed: false, completed_at: null })
+    }
+  }, [tasks, updateTask])
 
   const deleteTask = useCallback(async (id: string) => {
     const { error } = await supabase.from('tasks').delete().eq('id', id)
