@@ -12,15 +12,12 @@ import Modal from './components/ui/Modal'
 
 export default function App() {
   const { authenticated, login, logout, error } = useAuth()
-  const { tasks, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep } = useTasks()
+  const { tasks, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, starTask, unstarTask } = useTasks()
   const {
     batchTasks,
     completedInBatch,
     allCompleted,
     generateNewBatch,
-    pinToFocus,
-    unpinFromFocus,
-    batchTaskIds,
     loading: batchLoading,
   } = useActiveBatch(tasks)
 
@@ -60,9 +57,8 @@ export default function App() {
       onUncomplete={uncompleteTask}
       onDelete={deleteTask}
       onEdit={handleEdit}
-      onPin={pinToFocus}
-      onUnpin={unpinFromFocus}
-      batchTaskIds={batchTaskIds}
+      onStar={starTask}
+      onUnstar={unstarTask}
       onAddClick={handleAddClick}
     />
   )

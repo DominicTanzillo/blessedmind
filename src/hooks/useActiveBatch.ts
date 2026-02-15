@@ -63,82 +63,6 @@ export function useActiveBatch(tasks: Task[]) {
     }
   }, [tasks, batch?.id])
 
-  // Pin a specific task into the focus batch (swap it in)
-  const pinToFocus = useCallback(async (taskId: string) => {
-    if (!batch) {
-      // No batch yet - create one with just this task + fill from ranked
-      const ranked = rankTasks(tasks).filter(t => t.id !== taskId)
-      const ids = [taskId, ...ranked.slice(0, BATCH_SIZE - 1).map(t => t.id)]
-      const { data } = await supabase
-        .from('active_batch')
-        .insert({ task_ids: ids, completed_task_ids: [] })
-        .select()
-        .single()
-      if (data) setBatch(data as ActiveBatch)
-      return
-    }
-
-    const currentIds = batch.task_ids
-    if (currentIds.includes(taskId)) return // already in batch
-
-    // Replace the last non-completed task, or append if room
-    const incompleteBatchTasks = tasks.filter(
-      t => currentIds.includes(t.id) && !t.completed
-    )
-
-    let newIds: string[]
-    if (currentIds.length < BATCH_SIZE) {
-      // Room to add
-      newIds = [...currentIds, taskId]
-    } else if (incompleteBatchTasks.length > 0) {
-      // Swap out the last incomplete task
-      const swapOutId = incompleteBatchTasks[incompleteBatchTasks.length - 1].id
-      newIds = currentIds.map(id => (id === swapOutId ? taskId : id))
-    } else {
-      // All completed, just replace last
-      newIds = [...currentIds.slice(0, BATCH_SIZE - 1), taskId]
-    }
-
-    const { error } = await supabase
-      .from('active_batch')
-      .update({ task_ids: newIds })
-      .eq('id', batch.id)
-
-    if (!error) {
-      setBatch({ ...batch, task_ids: newIds })
-    }
-  }, [batch, tasks])
-
-  // Remove a task from focus batch, backfill from algorithm (but never re-add the unpinned task)
-  const unpinFromFocus = useCallback(async (taskId: string) => {
-    if (!batch) return
-    const newIds = batch.task_ids.filter(id => id !== taskId)
-
-    // Fill from ranked tasks, excluding the one being unpinned
-    const ranked = rankTasks(tasks).filter(t => t.id !== taskId && !newIds.includes(t.id))
-    while (newIds.length < BATCH_SIZE && ranked.length > 0) {
-      newIds.push(ranked.shift()!.id)
-    }
-
-    // Delete old batch and re-create to ensure persistence
-    await supabase.from('active_batch').delete().eq('id', batch.id)
-
-    if (newIds.length > 0) {
-      const { data } = await supabase
-        .from('active_batch')
-        .insert({ task_ids: newIds, completed_task_ids: [] })
-        .select()
-        .single()
-      if (data) {
-        setBatch(data as ActiveBatch)
-      } else {
-        setBatch(null)
-      }
-    } else {
-      setBatch(null)
-    }
-  }, [batch, tasks])
-
   // Initialize batch if none exists
   useEffect(() => {
     if (!loading && !batch && tasks.filter(t => !t.completed).length > 0) {
@@ -151,8 +75,6 @@ export function useActiveBatch(tasks: Task[]) {
     completedInBatch,
     allCompleted,
     generateNewBatch,
-    pinToFocus,
-    unpinFromFocus,
     batchTaskIds,
     loading,
     hasBatch: !!batch,

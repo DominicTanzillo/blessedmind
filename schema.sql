@@ -10,6 +10,8 @@ CREATE TABLE tasks (
   completed BOOLEAN DEFAULT FALSE,
   completed_at TIMESTAMPTZ,
   steps JSONB DEFAULT NULL,              -- null = simple task, [] = multi-step task
+  starred BOOLEAN DEFAULT FALSE,
+  starred_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );

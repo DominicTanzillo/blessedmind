@@ -40,7 +40,25 @@ export function scoreTask(task: Task): number {
   return score
 }
 
+/**
+ * Rank tasks for the focus batch.
+ * Starred tasks always come first, ordered by starred_at (FIFO).
+ * Remaining slots filled by the scoring algorithm.
+ */
 export function rankTasks(tasks: Task[]): Task[] {
   const incomplete = tasks.filter(t => !t.completed)
-  return incomplete.sort((a, b) => scoreTask(a) - scoreTask(b))
+
+  const starred = incomplete
+    .filter(t => t.starred)
+    .sort((a, b) => {
+      const aTime = a.starred_at ? new Date(a.starred_at).getTime() : 0
+      const bTime = b.starred_at ? new Date(b.starred_at).getTime() : 0
+      return aTime - bTime // earliest starred first (FIFO)
+    })
+
+  const unstarred = incomplete
+    .filter(t => !t.starred)
+    .sort((a, b) => scoreTask(a) - scoreTask(b))
+
+  return [...starred, ...unstarred]
 }

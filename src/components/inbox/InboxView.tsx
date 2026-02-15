@@ -9,13 +9,12 @@ interface Props {
   onUncomplete: (id: string) => void
   onDelete: (id: string) => void
   onEdit: (id: string, updates: Partial<Task>) => void
-  onPin: (id: string) => void
-  onUnpin: (id: string) => void
-  batchTaskIds: Set<string>
+  onStar: (id: string) => void
+  onUnstar: (id: string) => void
   onAddClick: () => void
 }
 
-export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, onEdit, onPin, onUnpin, batchTaskIds, onAddClick }: Props) {
+export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, onEdit, onStar, onUnstar, onAddClick }: Props) {
   const [filter, setFilter] = useState<TaskFilter>({
     search: '',
     category: '',
@@ -77,9 +76,8 @@ export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, o
             onUncomplete={onUncomplete}
             onDelete={onDelete}
             onEdit={onEdit}
-            onPin={onPin}
-            onUnpin={onUnpin}
-            isPinned={batchTaskIds.has(task.id)}
+            onStar={onStar}
+            onUnstar={onUnstar}
           />
         ))}
       </div>
@@ -97,9 +95,8 @@ export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, o
               onUncomplete={onUncomplete}
               onDelete={onDelete}
               onEdit={onEdit}
-              onPin={onPin}
-              onUnpin={onUnpin}
-              isPinned={batchTaskIds.has(task.id)}
+              onStar={onStar}
+              onUnstar={onUnstar}
             />
           ))}
         </div>

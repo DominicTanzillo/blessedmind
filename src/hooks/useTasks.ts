@@ -116,5 +116,13 @@ export function useTasks() {
     }
   }, [tasks, updateTask])
 
-  return { tasks, loading, fetchTasks, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep }
+  const starTask = useCallback(async (id: string) => {
+    await updateTask(id, { starred: true, starred_at: new Date().toISOString() })
+  }, [updateTask])
+
+  const unstarTask = useCallback(async (id: string) => {
+    await updateTask(id, { starred: false, starred_at: null })
+  }, [updateTask])
+
+  return { tasks, loading, fetchTasks, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, starTask, unstarTask }
 }

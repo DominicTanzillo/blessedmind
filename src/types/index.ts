@@ -13,6 +13,8 @@ export interface Task {
   category: string
   completed: boolean
   completed_at: string | null
+  starred: boolean
+  starred_at: string | null
   steps: Step[] | null
   created_at: string
   updated_at: string
