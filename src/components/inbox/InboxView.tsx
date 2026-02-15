@@ -43,7 +43,7 @@ export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, o
         <div>
           <h1 className="text-xl font-semibold text-stone-800">Your Mind</h1>
           <p className="text-xs text-stone-400 mt-0.5">
-            Everything captured. Nothing forgotten.
+            Every thought captured. Nothing lost.
           </p>
         </div>
         <button
@@ -62,9 +62,9 @@ export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, o
             <div className="w-12 h-12 rounded-full bg-sage-100 flex items-center justify-center mx-auto mb-4">
               <div className="w-6 h-6 rounded-full bg-sage-400 animate-breathe" />
             </div>
-            <p className="text-stone-500 text-sm font-medium">Your mind is empty</p>
+            <p className="text-stone-500 text-sm font-medium">Your mind is at rest</p>
             <p className="text-stone-400 text-xs mt-1">
-              When something comes up, dump it here. We'll process it.
+              When the thoughts come, bring them here. Be anxious for nothing.
             </p>
           </div>
         )}
@@ -108,7 +108,7 @@ export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, o
         </p>
         {totalIncomplete > 0 && (
           <p className="text-xs text-stone-400 italic">
-            All {totalIncomplete} are safely captured. Your focus shows only what matters now.
+            All are safely held. Your focus reveals only what the day requires.
           </p>
         )}
       </div>

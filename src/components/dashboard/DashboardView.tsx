@@ -76,7 +76,7 @@ export default function DashboardView({
         </div>
         <h2 className="text-xl font-semibold text-stone-700 mb-2">{getEmptyStateMessage()}</h2>
         <p className="text-stone-400 text-sm max-w-xs leading-relaxed mt-2">
-          When your mind feels full, come back and dump everything here. We'll sort it for you.
+          When the weight returns, bring it here. He cares for you, and so do we.
         </p>
       </div>
     )
@@ -137,8 +137,8 @@ export default function DashboardView({
             </button>
           ) : (
             <div className="animate-fade-up">
-              <p className="text-complete font-medium">Inbox zero. You're free.</p>
-              <p className="text-stone-400 text-xs mt-1">Come back when your mind needs clearing.</p>
+              <p className="text-complete font-medium">Your mind is clear. Go in peace.</p>
+              <p className="text-stone-400 text-xs mt-1">Return when the burden grows heavy again.</p>
             </div>
           )}
         </div>
@@ -185,9 +185,9 @@ export default function DashboardView({
       {/* Refresh batch + hint */}
       <div className="text-center space-y-3">
         <p className="text-xs text-stone-400 leading-relaxed">
-          Complete all three to unlock the next set.
+          Whatever your hand finds to do, do it with all your might.
           <br />
-          Everything else is safely stored.
+          The rest is safely held.
         </p>
 
         {/* Refresh batch button - subtle, always available */}

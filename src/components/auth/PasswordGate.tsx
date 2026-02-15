@@ -27,8 +27,8 @@ export default function PasswordGate({ onLogin, error }: Props) {
           <div className="w-16 h-16 bg-sage-400 rounded-full mx-auto mb-5 animate-breathe" />
           <h1 className="text-3xl font-semibold text-stone-800 tracking-tight">BlessedMind</h1>
           <p className="text-stone-400 mt-2 text-sm leading-relaxed">
-            Your mind has a lot going on.<br />
-            Let's make space for what matters.
+            Come to me, all who are weary<br />
+            and heavy laden, and I will give you rest.
           </p>
         </div>
 

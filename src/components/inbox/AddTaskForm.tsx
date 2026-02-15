@@ -85,7 +85,7 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <p className="text-stone-400 text-xs text-center leading-relaxed">
-        Get it out of your head. We'll hold it for you.
+        Cast all your anxieties on Him, for He cares for you.
       </p>
 
       <div>
