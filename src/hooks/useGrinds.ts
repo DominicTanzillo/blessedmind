@@ -241,7 +241,11 @@ export function useGrinds() {
       .select()
       .single()
 
-    if (!error && data) {
+    if (error) {
+      alert(`Failed to plant seed: ${error.message}`)
+      return
+    }
+    if (data) {
       setGrinds(prev => prev.some(g => g.id === (data as Grind).id) ? prev : [...prev, data as Grind])
     }
   }, [today])
