@@ -26,7 +26,7 @@ export default function MobileNav({ onAddClick }: Props) {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 19V6m0 0c-2-3-6-3-6 0 0 4 6 4 6 0zm0 0c2-3 6-3 6 0 0 4-6 4-6 0z" />
           </svg>
-          Grind
+          Garden
         </Link>
 
         <button onClick={onAddClick} className="flex flex-col items-center gap-0.5 text-xs font-medium text-sage-500">

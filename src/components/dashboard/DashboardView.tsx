@@ -3,7 +3,7 @@ import TaskCard from './TaskCard'
 import GrindCard from '../grind/GrindCard'
 import { getGreeting, getTimeContext, getBatchCompleteMessage, getEmptyStateMessage } from '../../lib/celebrations'
 import { playBlessedDay, playRefresh } from '../../lib/sounds'
-import type { Task, Grind } from '../../types'
+import type { Task, Grind, PlantHealth } from '../../types'
 
 interface Props {
   batchTasks: Task[]
@@ -20,6 +20,7 @@ interface Props {
   enabledGrindCount: number
   completedGrindCount: number
   onCompleteGrind: (id: string) => void
+  healthMap: Map<string, PlantHealth>
 }
 
 export default function DashboardView({
@@ -37,6 +38,7 @@ export default function DashboardView({
   enabledGrindCount,
   completedGrindCount,
   onCompleteGrind,
+  healthMap,
 }: Props) {
   const [blessedMessage] = useState(() => getBatchCompleteMessage())
   const greeting = getGreeting()
@@ -203,7 +205,7 @@ export default function DashboardView({
       {/* Active grinds first, then task cards */}
       <div className="space-y-3">
         {activeGrinds.map((g, i) => (
-          <GrindCard key={g.id} grind={g} onComplete={onCompleteGrind} index={i} />
+          <GrindCard key={g.id} grind={g} health={healthMap.get(g.id)} onComplete={onCompleteGrind} index={i} />
         ))}
         {sortedBatch.map((task, i) => (
           <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} index={activeGrinds.length + i} />

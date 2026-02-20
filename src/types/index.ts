@@ -38,19 +38,24 @@ export interface ActiveBatch {
   created_at: string
 }
 
+export type PlantHealth = 'healthy' | 'wilting' | 'sick' | 'withered'
+
 export interface Grind {
   id: string
   title: string
+  description: string
   disabled_days: number[]       // 0=Sun..6=Sat (JS getDay)
   current_streak: number
   best_streak: number
   last_completed_date: string | null
   last_checked_date: string | null
+  retired: boolean
+  color_variant: number         // 0–4
   created_at: string
   updated_at: string
 }
 
-export type NewGrind = Pick<Grind, 'title'> & Partial<Pick<Grind, 'disabled_days'>>
+export type NewGrind = Pick<Grind, 'title'> & Partial<Pick<Grind, 'disabled_days' | 'description'>>
 
 export interface MissedDay {
   grindId: string

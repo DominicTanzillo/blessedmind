@@ -10,6 +10,7 @@ interface Props {
 
 export default function AddGrindForm({ onAdd, onClose }: Props) {
   const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
   const [disabledDays, setDisabledDays] = useState<number[]>([])
 
   function toggleDay(day: number) {
@@ -21,7 +22,7 @@ export default function AddGrindForm({ onAdd, onClose }: Props) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
-    onAdd({ title: title.trim(), disabled_days: disabledDays })
+    onAdd({ title: title.trim(), description: description.trim(), disabled_days: disabledDays })
     onClose()
   }
 
@@ -29,7 +30,7 @@ export default function AddGrindForm({ onAdd, onClose }: Props) {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
         <label className="block text-sm font-medium text-stone-700 mb-1.5">
-          What will you grind daily?
+          What will you tend daily?
         </label>
         <input
           type="text"
@@ -38,6 +39,19 @@ export default function AddGrindForm({ onAdd, onClose }: Props) {
           placeholder="e.g. Morning prayer, 20 pushups, Read 10 pages"
           className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:border-sage-400 focus:ring-1 focus:ring-sage-400 outline-none transition text-stone-800 placeholder:text-stone-300"
           autoFocus
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-stone-700 mb-1.5">
+          Description <span className="text-stone-400 font-normal">(links, details)</span>
+        </label>
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="e.g. https://example.com/workout-plan or notes about this habit"
+          rows={2}
+          className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:border-sage-400 focus:ring-1 focus:ring-sage-400 outline-none transition text-stone-800 placeholder:text-stone-300 resize-none text-sm"
         />
       </div>
 

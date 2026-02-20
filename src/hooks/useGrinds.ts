@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Grind, NewGrind, MissedDay } from '../types'
+import type { Grind, NewGrind, MissedDay, PlantHealth } from '../types'
 
 function todayStr(): string {
   return new Date().toLocaleDateString('en-CA') // YYYY-MM-DD local
@@ -16,6 +16,40 @@ export function plantStage(streak: number): 0 | 1 | 2 | 3 | 4 {
 }
 
 export const STAGE_NAMES = ['Seed', 'Sprout', 'Sapling', 'Bloom', 'Tree'] as const
+
+/** Compute plant health based on missed enabled days since last completion */
+export function getPlantHealth(grind: Grind): PlantHealth {
+  const today = todayStr()
+  if (grind.last_completed_date === today) return 'healthy'
+
+  // Count missed enabled days between last_completed_date and today
+  const startStr = grind.last_completed_date ?? grind.created_at.slice(0, 10)
+  const start = new Date(startStr + 'T00:00:00')
+  const end = new Date(today + 'T00:00:00')
+
+  let missedCount = 0
+  const d = new Date(start)
+  d.setDate(d.getDate() + 1) // day after last completed
+
+  while (d < end) {
+    const dayOfWeek = d.getDay()
+    if (!grind.disabled_days.includes(dayOfWeek)) {
+      missedCount++
+    }
+    d.setDate(d.getDate() + 1)
+  }
+
+  // Today itself: if today is enabled and not completed, count it
+  const todayDow = new Date().getDay()
+  if (!grind.disabled_days.includes(todayDow)) {
+    missedCount++
+  }
+
+  if (missedCount === 0) return 'healthy'
+  if (missedCount <= 1) return 'wilting'
+  if (missedCount < 7) return 'sick'
+  return 'withered'
+}
 
 export function useGrinds() {
   const [grinds, setGrinds] = useState<Grind[]>([])
@@ -44,7 +78,8 @@ export function useGrinds() {
     const missed: MissedDay[] = []
     const updates: { id: string; last_checked_date: string }[] = []
 
-    for (const g of grinds) {
+    // Only check non-retired grinds for missed days
+    for (const g of grinds.filter(g => !g.retired)) {
       const lastChecked = g.last_checked_date ?? g.created_at.slice(0, 10)
       const startDate = new Date(lastChecked + 'T00:00:00')
       const yesterday = new Date()
@@ -92,16 +127,28 @@ export function useGrinds() {
     completedTodayMap.set(g.id, g.last_completed_date === today)
   }
 
-  /** Grinds active today: not completed + not disabled for today's day-of-week */
+  /** Non-retired grinds active today: not completed + not disabled for today's day-of-week */
   const dayOfWeek = new Date().getDay()
-  const activeGrinds = grinds.filter(g =>
+  const nonRetiredGrinds = grinds.filter(g => !g.retired)
+  const retiredGrinds = grinds.filter(g => g.retired)
+
+  const activeGrinds = nonRetiredGrinds.filter(g =>
     !completedTodayMap.get(g.id) && !g.disabled_days.includes(dayOfWeek)
   )
 
-  /** Grinds enabled today (regardless of completion) */
-  const enabledToday = grinds.filter(g => !g.disabled_days.includes(dayOfWeek))
+  /** Grinds enabled today (regardless of completion), non-retired only */
+  const enabledToday = nonRetiredGrinds.filter(g => !g.disabled_days.includes(dayOfWeek))
   const enabledGrindCount = enabledToday.length
   const completedGrindCount = enabledToday.filter(g => completedTodayMap.get(g.id)).length
+
+  /** Health map for all non-retired grinds */
+  const healthMap = useMemo(() => {
+    const map = new Map<string, PlantHealth>()
+    for (const g of nonRetiredGrinds) {
+      map.set(g.id, getPlantHealth(g))
+    }
+    return map
+  }, [nonRetiredGrinds])
 
   // ── Actions ──────────────────────────────────────────────
 
@@ -145,8 +192,10 @@ export function useGrinds() {
       .from('grinds')
       .insert({
         title: newGrind.title,
+        description: newGrind.description ?? '',
         disabled_days: newGrind.disabled_days ?? [],
         last_checked_date: today,
+        color_variant: Math.floor(Math.random() * 5),
       })
       .select()
       .single()
@@ -159,24 +208,40 @@ export function useGrinds() {
     setGrinds(prev => prev.filter(g => g.id !== id))
   }, [])
 
-  const updateGrind = useCallback(async (id: string, updates: Partial<Pick<Grind, 'title' | 'disabled_days'>>) => {
+  const updateGrind = useCallback(async (id: string, updates: Partial<Pick<Grind, 'title' | 'description' | 'disabled_days'>>) => {
     const merged = { ...updates, updated_at: new Date().toISOString() }
     await supabase.from('grinds').update(merged).eq('id', id)
     setGrinds(prev => prev.map(g => g.id === id ? { ...g, ...merged } : g))
   }, [])
 
+  const retireGrind = useCallback(async (id: string) => {
+    const updates = { retired: true, updated_at: new Date().toISOString() }
+    await supabase.from('grinds').update(updates).eq('id', id)
+    setGrinds(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g))
+  }, [])
+
+  const reactivateGrind = useCallback(async (id: string) => {
+    const updates = { retired: false, updated_at: new Date().toISOString() }
+    await supabase.from('grinds').update(updates).eq('id', id)
+    setGrinds(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g))
+  }, [])
+
   return {
-    grinds,
+    grinds: nonRetiredGrinds,
+    retiredGrinds,
     activeGrinds,
     enabledGrindCount,
     completedGrindCount,
     completedTodayMap,
     missedDays,
+    healthMap,
     loading,
     completeGrind,
     reconcileMissedDay,
     addGrind,
     deleteGrind,
     updateGrind,
+    retireGrind,
+    reactivateGrind,
   }
 }

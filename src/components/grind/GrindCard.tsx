@@ -3,15 +3,16 @@ import PlantSVG from './PlantSVG'
 import { plantStage, STAGE_NAMES } from '../../hooks/useGrinds'
 import { playGrindComplete } from '../../lib/sounds'
 import { getGrindCompletionMessage, shouldShowInsight } from '../../lib/celebrations'
-import type { Grind } from '../../types'
+import type { Grind, PlantHealth } from '../../types'
 
 interface Props {
   grind: Grind
+  health?: PlantHealth
   onComplete: (id: string) => void
   index: number
 }
 
-export default function GrindCard({ grind, onComplete, index }: Props) {
+export default function GrindCard({ grind, health = 'healthy', onComplete, index }: Props) {
   const [animating, setAnimating] = useState(false)
   const [msg, setMsg] = useState('')
   const stage = plantStage(grind.current_streak)
@@ -40,7 +41,7 @@ export default function GrindCard({ grind, onComplete, index }: Props) {
     >
       <div className="flex items-center gap-4">
         {/* Plant */}
-        <PlantSVG stage={stage} size="sm" />
+        <PlantSVG stage={stage} size="sm" colorVariant={grind.color_variant} health={health} />
 
         {/* Title + streak */}
         <div className="flex-1 min-w-0">

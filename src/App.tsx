@@ -19,16 +19,20 @@ export default function App() {
   const { tasks, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, starTask, unstarTask, convertToWaiting, reactivateTask } = useTasks()
   const {
     grinds,
+    retiredGrinds,
     activeGrinds,
     enabledGrindCount,
     completedGrindCount,
     missedDays,
+    healthMap,
     loading: grindsLoading,
     completeGrind,
     reconcileMissedDay,
     addGrind,
     deleteGrind,
     updateGrind,
+    retireGrind,
+    reactivateGrind,
   } = useGrinds()
   const {
     batchTasks,
@@ -82,6 +86,7 @@ export default function App() {
       enabledGrindCount={enabledGrindCount}
       completedGrindCount={completedGrindCount}
       onCompleteGrind={completeGrind}
+      healthMap={healthMap}
     />
   )
 
@@ -111,9 +116,13 @@ export default function App() {
   const grindEl = (
     <GrindView
       grinds={grinds}
+      retiredGrinds={retiredGrinds}
+      healthMap={healthMap}
       onAdd={addGrind}
       onDelete={deleteGrind}
       onUpdate={updateGrind}
+      onRetire={retireGrind}
+      onReactivate={reactivateGrind}
     />
   )
 
