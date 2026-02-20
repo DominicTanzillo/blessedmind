@@ -4,7 +4,7 @@ import type { NewGrind } from '../../types'
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 interface Props {
-  onAdd: (grind: NewGrind) => void
+  onAdd: (grind: NewGrind) => Promise<void> | void
   onClose: () => void
 }
 
@@ -19,10 +19,10 @@ export default function AddGrindForm({ onAdd, onClose }: Props) {
     )
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
-    onAdd({ title: title.trim(), description: description.trim(), disabled_days: disabledDays })
+    await onAdd({ title: title.trim(), description: description.trim(), disabled_days: disabledDays })
     onClose()
   }
 

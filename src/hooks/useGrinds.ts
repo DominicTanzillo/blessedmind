@@ -229,7 +229,7 @@ export function useGrinds() {
   }, [])
 
   const addGrind = useCallback(async (newGrind: NewGrind) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('grinds')
       .insert({
         title: newGrind.title,
@@ -241,6 +241,11 @@ export function useGrinds() {
       .select()
       .single()
 
+    if (error) {
+      console.error('addGrind failed:', error)
+      alert(`Failed to plant seed: ${error.message}`)
+      return
+    }
     if (data) setGrinds(prev => prev.some(g => g.id === (data as Grind).id) ? prev : [...prev, data as Grind])
   }, [today])
 

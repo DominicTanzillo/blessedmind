@@ -44,7 +44,7 @@ export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onD
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedRetiredId, setSelectedRetiredId] = useState<string | null>(null)
 
-  const canAddActive = grinds.length < 3
+  const canAddActive = grinds.length < 2
   const totalGrinds = grinds.length + retiredGrinds.length
 
   if (grinds.length === 0 && retiredGrinds.length === 0) {
