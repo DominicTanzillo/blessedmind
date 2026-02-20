@@ -40,12 +40,26 @@ const HEALTH_CLASSES: Record<PlantHealth, string> = {
   withered: 'plant-withered',
 }
 
+const DROOP_DEGREES: Record<PlantHealth, number> = {
+  healthy: 0,
+  wilting: 3,
+  sick: 5,
+  withered: 8,
+}
+
 export default function PlantSVG({ stage, size = 'md', colorVariant = 0, health = 'healthy' }: Props) {
   const s = SIZES[size]
   const vb = '0 0 48 48'
   const p = PALETTES[colorVariant] ?? PALETTES[0]
   const healthClass = HEALTH_CLASSES[health]
   const filterId = health !== 'healthy' ? `health-${health}` : undefined
+
+  // Lean direction based on color variant: even = right, odd = left
+  const direction = colorVariant % 2 === 0 ? 1 : -1
+  const droopDeg = DROOP_DEGREES[health]
+  const droopStyle = droopDeg > 0
+    ? { transform: `rotate(${droopDeg * direction}deg)`, transformOrigin: '24px 42px' } as React.CSSProperties
+    : undefined
 
   return (
     <svg
@@ -54,7 +68,7 @@ export default function PlantSVG({ stage, size = 'md', colorVariant = 0, health 
       viewBox={vb}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`animate-plant-grow ${healthClass}`}
+      className="animate-plant-grow"
     >
       {filterId && (
         <defs>
@@ -78,10 +92,11 @@ export default function PlantSVG({ stage, size = 'md', colorVariant = 0, health 
         </defs>
       )}
 
-      <g filter={filterId ? `url(#${filterId})` : undefined}>
-        {/* Soil line */}
-        <line x1="8" y1="42" x2="40" y2="42" stroke="#a8977a" strokeWidth="1.5" strokeLinecap="round" />
+      {/* Soil line — always level */}
+      <line x1="8" y1="42" x2="40" y2="42" stroke="#a8977a" strokeWidth="1.5" strokeLinecap="round" />
 
+      {/* Plant group — droop + filter applied here only */}
+      <g filter={filterId ? `url(#${filterId})` : undefined} style={droopStyle} className={healthClass}>
         {stage === 0 && <SeedStage />}
         {stage === 1 && <SproutStage p={p} />}
         {stage === 2 && <SaplingStage p={p} />}

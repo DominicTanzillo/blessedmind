@@ -156,27 +156,15 @@ body {
   transform-origin: bottom center;
 }
 
-/* Plant health states */
-.plant-wilting {
-  transform: rotate(3deg);
-  transform-origin: bottom center;
-}
+/* Plant health states — rotation is inline, CSS handles sway only */
 .plant-wilting .animate-plant-sway {
   animation-duration: 4s;
 }
 
-.plant-sick {
-  transform: rotate(5deg);
-  transform-origin: bottom center;
-}
 .plant-sick .animate-plant-sway {
   animation-duration: 6s;
 }
 
-.plant-withered {
-  transform: rotate(8deg);
-  transform-origin: bottom center;
-}
 .plant-withered .animate-plant-sway {
   animation: none;
 }
