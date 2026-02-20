@@ -236,13 +236,13 @@ export function useGrinds() {
         description: newGrind.description ?? '',
         disabled_days: newGrind.disabled_days ?? [],
         last_checked_date: today,
+        color_variant: Math.floor(Math.random() * 5),
       })
       .select()
       .single()
 
     if (!error && data) {
-      const grind = { ...data, color_variant: data.color_variant ?? Math.floor(Math.random() * 5) } as Grind
-      setGrinds(prev => prev.some(g => g.id === grind.id) ? prev : [...prev, grind])
+      setGrinds(prev => prev.some(g => g.id === (data as Grind).id) ? prev : [...prev, data as Grind])
     }
   }, [today])
 
