@@ -27,6 +27,7 @@ export default function App() {
     healthMap,
     loading: grindsLoading,
     completeGrind,
+    uncompleteGrind,
     reconcileMissedDay,
     addGrind,
     deleteGrind,
@@ -40,7 +41,7 @@ export default function App() {
     allCompleted,
     generateNewBatch,
     loading: batchLoading,
-  } = useActiveBatch(tasks, enabledGrindCount)
+  } = useActiveBatch(tasks, activeGrinds.length)
 
   const [addModalOpen, setAddModalOpen] = useState(false)
 
@@ -123,6 +124,7 @@ export default function App() {
       onUpdate={updateGrind}
       onRetire={retireGrind}
       onReactivate={reactivateGrind}
+      onUncomplete={uncompleteGrind}
     />
   )
 

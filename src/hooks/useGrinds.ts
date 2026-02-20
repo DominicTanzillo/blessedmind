@@ -197,6 +197,20 @@ export function useGrinds() {
     setGrinds(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g))
   }, [grinds, today])
 
+  const uncompleteGrind = useCallback(async (id: string) => {
+    const grind = grinds.find(g => g.id === id)
+    if (!grind) return
+
+    const updates = {
+      last_completed_date: null as string | null,
+      current_streak: Math.max(0, grind.current_streak - 1),
+      updated_at: new Date().toISOString(),
+    }
+
+    await supabase.from('grinds').update(updates).eq('id', id)
+    setGrinds(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g))
+  }, [grinds])
+
   const reconcileMissedDay = useCallback((grindId: string, date: string, didComplete: boolean) => {
     if (didComplete) {
       // "Yes" — streak continues, remove this missed day
@@ -264,6 +278,7 @@ export function useGrinds() {
     healthMap,
     loading,
     completeGrind,
+    uncompleteGrind,
     reconcileMissedDay,
     addGrind,
     deleteGrind,

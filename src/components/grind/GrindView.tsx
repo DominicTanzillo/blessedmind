@@ -36,9 +36,10 @@ interface Props {
   onUpdate: (id: string, updates: Partial<Pick<Grind, 'title' | 'description' | 'disabled_days'>>) => void
   onRetire: (id: string) => void
   onReactivate: (id: string) => void
+  onUncomplete: (id: string) => void
 }
 
-export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onDelete, onUpdate, onRetire, onReactivate }: Props) {
+export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onDelete, onUpdate, onRetire, onReactivate, onUncomplete }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedRetiredId, setSelectedRetiredId] = useState<string | null>(null)
@@ -85,6 +86,7 @@ export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onD
             onEdit={() => setEditingId(editingId === g.id ? null : g.id)}
             onUpdate={onUpdate}
             onRetire={onRetire}
+            onUncomplete={onUncomplete}
           />
         ))}
       </div>
@@ -146,14 +148,16 @@ interface CardProps {
   onEdit: () => void
   onUpdate: (id: string, updates: Partial<Pick<Grind, 'title' | 'description' | 'disabled_days'>>) => void
   onRetire: (id: string) => void
+  onUncomplete: (id: string) => void
 }
 
-function GrindGardenCard({ grind, health, editing, onEdit, onUpdate, onRetire }: CardProps) {
+function GrindGardenCard({ grind, health, editing, onEdit, onUpdate, onRetire, onUncomplete }: CardProps) {
   const stage = plantStage(grind.current_streak)
   const [title, setTitle] = useState(grind.title)
   const [description, setDescription] = useState(grind.description)
   const [disabledDays, setDisabledDays] = useState(grind.disabled_days)
   const [confirmRetire, setConfirmRetire] = useState(false)
+  const completedToday = grind.last_completed_date === new Date().toLocaleDateString('en-CA')
 
   function toggleDay(day: number) {
     setDisabledDays(prev =>
@@ -183,6 +187,17 @@ function GrindGardenCard({ grind, health, editing, onEdit, onUpdate, onRetire }:
             <span className="text-stone-400">{grind.current_streak}d streak</span>
             <span className="text-stone-300">best {grind.best_streak}d</span>
           </div>
+          {completedToday && (
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-xs text-complete font-medium">Done today</span>
+              <button
+                onClick={() => onUncomplete(grind.id)}
+                className="text-xs text-stone-400 hover:text-terracotta transition"
+              >
+                Undo
+              </button>
+            </div>
+          )}
         </div>
         <button
           onClick={onEdit}

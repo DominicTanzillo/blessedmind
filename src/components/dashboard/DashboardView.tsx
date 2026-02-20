@@ -44,7 +44,7 @@ export default function DashboardView({
   const greeting = getGreeting()
   const timeContext = getTimeContext()
   const grindsAllDone = completedGrindCount === enabledGrindCount
-  const everythingCompleted = allCompleted && grindsAllDone && (batchTasks.length > 0 || enabledGrindCount > 0)
+  const everythingCompleted = (allCompleted || batchTasks.length === 0) && grindsAllDone && (batchTasks.length > 0 || enabledGrindCount > 0)
   const prevAllCompleted = useRef(false)
 
   // Play blessed day sound when everything just completed
