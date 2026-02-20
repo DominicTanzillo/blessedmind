@@ -229,34 +229,20 @@ export function useGrinds() {
   }, [])
 
   const addGrind = useCallback(async (newGrind: NewGrind) => {
-    try {
-      const { data, error, status } = await supabase
-        .from('grinds')
-        .insert({
-          title: newGrind.title,
-          description: newGrind.description ?? '',
-          disabled_days: newGrind.disabled_days ?? [],
-          last_checked_date: today,
-          color_variant: Math.floor(Math.random() * 5),
-        })
-        .select()
-        .single()
+    const { data, error } = await supabase
+      .from('grinds')
+      .insert({
+        title: newGrind.title,
+        description: newGrind.description ?? '',
+        disabled_days: newGrind.disabled_days ?? [],
+        last_checked_date: today,
+      })
+      .select()
+      .single()
 
-      console.log('addGrind result:', { data, error, status })
-
-      if (error) {
-        console.error('addGrind error:', error)
-        alert(`Failed to plant seed: ${error.message}`)
-        return
-      }
-      if (data) {
-        setGrinds(prev => prev.some(g => g.id === (data as Grind).id) ? prev : [...prev, data as Grind])
-      } else {
-        alert('Insert returned no data and no error. Check Supabase RLS policies on grinds table.')
-      }
-    } catch (e) {
-      console.error('addGrind exception:', e)
-      alert(`Exception planting seed: ${e instanceof Error ? e.message : String(e)}`)
+    if (!error && data) {
+      const grind = { ...data, color_variant: data.color_variant ?? Math.floor(Math.random() * 5) } as Grind
+      setGrinds(prev => prev.some(g => g.id === grind.id) ? prev : [...prev, grind])
     }
   }, [today])
 
