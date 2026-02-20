@@ -194,9 +194,43 @@ export function playWelcome() {
   } catch { /* silent fallback */ }
 }
 
+/**
+ * Grind complete – warm sine tones that layer richer harmonics
+ * at milestone streaks (3d, 7d, 14d, 30d).
+ */
+export function playGrindComplete(streak: number) {
+  try {
+    const c = getCtx()
+    const t = c.currentTime
+
+    // Base: warm ascending fifth (A4 → E5)
+    tone(440, 'sine', 0.25, t, 0.10, c.destination)
+    tone(659.25, 'sine', 0.3, t + 0.08, 0.08, c.destination)
+
+    // Layer richer harmonics at milestones
+    if (streak >= 3) {
+      tone(880, 'triangle', 0.2, t + 0.12, 0.04, c.destination)
+    }
+    if (streak >= 7) {
+      tone(1318.5, 'sine', 0.25, t + 0.16, 0.03, c.destination)
+    }
+    if (streak >= 14) {
+      tone(523.25, 'sine', 0.4, t + 0.04, 0.05, c.destination)
+      tone(783.99, 'triangle', 0.3, t + 0.2, 0.03, c.destination)
+    }
+    if (streak >= 30) {
+      // Full major triad shimmer
+      tone(1046.5, 'triangle', 0.5, t + 0.24, 0.025, c.destination)
+      tone(1318.5, 'sine', 0.4, t + 0.28, 0.02, c.destination)
+    }
+
+    haptic(streak >= 14 ? 60 : streak >= 7 ? 40 : 25)
+  } catch { /* silent fallback */ }
+}
+
 // ── Haptic (mobile) ────────────────────────────────────────
 
-function haptic(ms: number) {
+export function haptic(ms: number) {
   try {
     navigator?.vibrate?.(ms)
   } catch { /* not supported */ }

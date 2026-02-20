@@ -4,7 +4,7 @@ import { rankTasks } from '../lib/prioritize'
 import { BATCH_SIZE } from '../lib/constants'
 import type { Task, ActiveBatch } from '../types'
 
-export function useActiveBatch(tasks: Task[]) {
+export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
   const [batch, setBatch] = useState<ActiveBatch | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -38,7 +38,8 @@ export function useActiveBatch(tasks: Task[]) {
   // Create a new batch from the top-ranked tasks
   const generateNewBatch = useCallback(async () => {
     const ranked = rankTasks(tasks)
-    const topIds = ranked.slice(0, BATCH_SIZE).map(t => t.id)
+    const effectiveSize = Math.max(0, BATCH_SIZE - enabledGrindCount)
+    const topIds = ranked.slice(0, effectiveSize).map(t => t.id)
 
     if (topIds.length === 0) {
       if (batch?.id) {
@@ -61,7 +62,7 @@ export function useActiveBatch(tasks: Task[]) {
     if (data) {
       setBatch(data as ActiveBatch)
     }
-  }, [tasks, batch?.id])
+  }, [tasks, batch?.id, enabledGrindCount])
 
   // Initialize batch if none exists
   useEffect(() => {

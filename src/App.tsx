@@ -3,11 +3,14 @@ import { HashRouter, Routes, Route } from 'react-router'
 import { useAuth } from './hooks/useAuth'
 import { useTasks } from './hooks/useTasks'
 import { useActiveBatch } from './hooks/useActiveBatch'
+import { useGrinds } from './hooks/useGrinds'
 import PasswordGate from './components/auth/PasswordGate'
 import AppShell from './components/layout/AppShell'
 import DashboardView from './components/dashboard/DashboardView'
 import InboxView from './components/inbox/InboxView'
 import WaitingView from './components/waiting/WaitingView'
+import GrindView from './components/grind/GrindView'
+import MissedDaysDialog from './components/grind/MissedDaysDialog'
 import AddTaskForm from './components/inbox/AddTaskForm'
 import Modal from './components/ui/Modal'
 
@@ -15,12 +18,25 @@ export default function App() {
   const { authenticated, login, logout, error } = useAuth()
   const { tasks, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, starTask, unstarTask, convertToWaiting, reactivateTask } = useTasks()
   const {
+    grinds,
+    activeGrinds,
+    enabledGrindCount,
+    completedGrindCount,
+    missedDays,
+    loading: grindsLoading,
+    completeGrind,
+    reconcileMissedDay,
+    addGrind,
+    deleteGrind,
+    updateGrind,
+  } = useGrinds()
+  const {
     batchTasks,
     completedInBatch,
     allCompleted,
     generateNewBatch,
     loading: batchLoading,
-  } = useActiveBatch(tasks)
+  } = useActiveBatch(tasks, enabledGrindCount)
 
   const [addModalOpen, setAddModalOpen] = useState(false)
 
@@ -60,8 +76,12 @@ export default function App() {
       onCompleteStep={completeStep}
       onConvertToWaiting={convertToWaiting}
       onNextBatch={generateNewBatch}
-      loading={tasksLoading || batchLoading}
+      loading={tasksLoading || batchLoading || grindsLoading}
       totalIncomplete={totalIncomplete}
+      activeGrinds={activeGrinds}
+      enabledGrindCount={enabledGrindCount}
+      completedGrindCount={completedGrindCount}
+      onCompleteGrind={completeGrind}
     />
   )
 
@@ -88,6 +108,15 @@ export default function App() {
     />
   )
 
+  const grindEl = (
+    <GrindView
+      grinds={grinds}
+      onAdd={addGrind}
+      onDelete={deleteGrind}
+      onUpdate={updateGrind}
+    />
+  )
+
   return (
     <HashRouter>
       <Routes>
@@ -95,12 +124,17 @@ export default function App() {
           <Route index element={dashboardEl} />
           <Route path="inbox" element={inboxEl} />
           <Route path="waiting" element={waitingEl} />
+          <Route path="grind" element={grindEl} />
         </Route>
       </Routes>
 
       <Modal open={addModalOpen} onClose={handleAddClose} title="Brain Dump">
         <AddTaskForm onAdd={addTask} onClose={handleAddClose} taskCount={tasks.length} />
       </Modal>
+
+      {missedDays.length > 0 && (
+        <MissedDaysDialog missedDays={missedDays} onReconcile={reconcileMissedDay} />
+      )}
     </HashRouter>
   )
 }

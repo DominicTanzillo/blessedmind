@@ -73,6 +73,30 @@ export function getGreeting(): string {
   return 'Rest well tonight'
 }
 
+// ── Grind messages ─────────────────────────────────────────
+
+const GRIND_COMPLETION_MESSAGES = [
+  'Faithful in the small things.',
+  'One more root driven deep.',
+  'The seed you planted is growing.',
+  'Consistency is its own reward.',
+  'Your garden is tended.',
+  'A little each day moves mountains.',
+]
+
+const GRIND_MILESTONE_MESSAGES: Record<number, string> = {
+  3: 'Three days strong. The sprout breaks through.',
+  7: 'A full week. Your sapling stands firm.',
+  14: 'Two weeks of faithfulness. Watch it bloom.',
+  30: 'A month of daily devotion. The tree stands tall.',
+}
+
+export function getGrindCompletionMessage(streak: number): string {
+  const milestone = GRIND_MILESTONE_MESSAGES[streak]
+  if (milestone) return milestone
+  return GRIND_COMPLETION_MESSAGES[Math.floor(Math.random() * GRIND_COMPLETION_MESSAGES.length)]
+}
+
 export function getTimeContext(): string {
   const hour = new Date().getHours()
   if (hour >= 21 || hour < 6) {

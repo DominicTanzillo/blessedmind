@@ -22,6 +22,13 @@ export default function MobileNav({ onAddClick }: Props) {
           Focus
         </Link>
 
+        <Link to="/grind" className={linkClass('/grind')}>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 19V6m0 0c-2-3-6-3-6 0 0 4 6 4 6 0zm0 0c2-3 6-3 6 0 0 4-6 4-6 0z" />
+          </svg>
+          Grind
+        </Link>
+
         <button onClick={onAddClick} className="flex flex-col items-center gap-0.5 text-xs font-medium text-sage-500">
           <div className="w-11 h-11 rounded-full bg-sage-500 text-white flex items-center justify-center text-2xl -mt-5 shadow-md hover:shadow-lg hover:bg-sage-600 transition-all duration-200 hover:scale-105">
             +

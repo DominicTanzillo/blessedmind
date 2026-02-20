@@ -29,6 +29,7 @@ export default function Header({ onLogout, taskCount, waitingCount }: Props) {
 
         <nav className="hidden sm:flex items-center gap-1">
           <Link to="/" className={linkClass('/')}>Focus</Link>
+          <Link to="/grind" className={linkClass('/grind')}>Grind</Link>
           <Link to="/inbox" className={linkClass('/inbox')}>
             Mind
             {pathname === '/inbox' && taskCount > 0 && (

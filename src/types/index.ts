@@ -37,3 +37,23 @@ export interface ActiveBatch {
   completed_task_ids: string[]
   created_at: string
 }
+
+export interface Grind {
+  id: string
+  title: string
+  disabled_days: number[]       // 0=Sun..6=Sat (JS getDay)
+  current_streak: number
+  best_streak: number
+  last_completed_date: string | null
+  last_checked_date: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type NewGrind = Pick<Grind, 'title'> & Partial<Pick<Grind, 'disabled_days'>>
+
+export interface MissedDay {
+  grindId: string
+  grindTitle: string
+  date: string                  // YYYY-MM-DD
+}

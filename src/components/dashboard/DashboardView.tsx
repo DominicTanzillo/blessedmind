@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import TaskCard from './TaskCard'
+import GrindCard from '../grind/GrindCard'
 import { getGreeting, getTimeContext, getBatchCompleteMessage, getEmptyStateMessage } from '../../lib/celebrations'
 import { playBlessedDay, playRefresh } from '../../lib/sounds'
-import type { Task } from '../../types'
+import type { Task, Grind } from '../../types'
 
 interface Props {
   batchTasks: Task[]
@@ -15,6 +16,10 @@ interface Props {
   onNextBatch: () => void
   loading: boolean
   totalIncomplete: number
+  activeGrinds: Grind[]
+  enabledGrindCount: number
+  completedGrindCount: number
+  onCompleteGrind: (id: string) => void
 }
 
 export default function DashboardView({
@@ -28,19 +33,25 @@ export default function DashboardView({
   onNextBatch,
   loading,
   totalIncomplete,
+  activeGrinds,
+  enabledGrindCount,
+  completedGrindCount,
+  onCompleteGrind,
 }: Props) {
   const [blessedMessage] = useState(() => getBatchCompleteMessage())
   const greeting = getGreeting()
   const timeContext = getTimeContext()
+  const grindsAllDone = completedGrindCount === enabledGrindCount
+  const everythingCompleted = allCompleted && grindsAllDone && (batchTasks.length > 0 || enabledGrindCount > 0)
   const prevAllCompleted = useRef(false)
 
-  // Play blessed day sound when all tasks just completed
+  // Play blessed day sound when everything just completed
   useEffect(() => {
-    if (allCompleted && !prevAllCompleted.current) {
+    if (everythingCompleted && !prevAllCompleted.current) {
       playBlessedDay()
     }
-    prevAllCompleted.current = allCompleted
-  }, [allCompleted])
+    prevAllCompleted.current = everythingCompleted
+  }, [everythingCompleted])
 
   function handleNextBatch() {
     playRefresh()
@@ -70,7 +81,7 @@ export default function DashboardView({
   // ============================================================
   // EMPTY STATE - Nothing to do
   // ============================================================
-  if (batchTasks.length === 0 && totalIncomplete === 0) {
+  if (batchTasks.length === 0 && totalIncomplete === 0 && enabledGrindCount === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="w-20 h-20 rounded-full bg-sage-100 flex items-center justify-center mb-6 animate-float">
@@ -87,7 +98,7 @@ export default function DashboardView({
   // ============================================================
   // ALL 3 COMPLETED - Blessed Day celebration
   // ============================================================
-  if (allCompleted) {
+  if (everythingCompleted) {
     return (
       <div className="space-y-8 py-4">
         <div className="text-center py-6 animate-shimmer rounded-3xl">
@@ -157,8 +168,20 @@ export default function DashboardView({
         <p className="text-stone-400 text-sm">{greeting}</p>
         <h1 className="text-xl font-semibold text-stone-800">Your Focus</h1>
 
-        {/* Progress dots */}
+        {/* Progress dots — grind dots (sage) + task dots */}
         <div className="flex items-center justify-center gap-3 pt-2">
+          {Array.from({ length: enabledGrindCount }).map((_, i) => (
+            <div key={`g-${i}`} className="relative">
+              <div
+                className={`w-3 h-3 rounded-full transition-all duration-500 ${
+                  i < completedGrindCount ? 'bg-complete scale-125' : 'bg-sage-300'
+                }`}
+              />
+              {i < completedGrindCount && (
+                <div className="absolute inset-0 rounded-full bg-complete/20 animate-ripple" />
+              )}
+            </div>
+          ))}
           {batchTasks.map(t => (
             <div key={t.id} className="relative">
               <div
@@ -173,14 +196,17 @@ export default function DashboardView({
           ))}
         </div>
         <p className="text-stone-400 text-xs">
-          {completedInBatch} of {batchTasks.length}
+          {completedGrindCount + completedInBatch} of {enabledGrindCount + batchTasks.length}
         </p>
       </div>
 
-      {/* All 3 task cards - incomplete first, completed at bottom checked off */}
+      {/* Active grinds first, then task cards */}
       <div className="space-y-3">
+        {activeGrinds.map((g, i) => (
+          <GrindCard key={g.id} grind={g} onComplete={onCompleteGrind} index={i} />
+        ))}
         {sortedBatch.map((task, i) => (
-          <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} index={i} />
+          <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} index={activeGrinds.length + i} />
         ))}
       </div>
 
