@@ -23,6 +23,31 @@ export function useTasks() {
     fetchTasks()
   }, [fetchTasks])
 
+  // ── Realtime subscription ──────────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('tasks-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const row = payload.new as Task
+            setTasks(prev => prev.some(t => t.id === row.id) ? prev : [row, ...prev])
+          } else if (payload.eventType === 'UPDATE') {
+            const row = payload.new as Task
+            setTasks(prev => prev.map(t => t.id === row.id ? row : t))
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = (payload.old as { id: string }).id
+            setTasks(prev => prev.filter(t => t.id !== oldId))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
   const addTask = useCallback(async (task: NewTask) => {
     const { data, error } = await supabase
       .from('tasks')

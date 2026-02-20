@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Grind, NewGrind, MissedDay, PlantHealth } from '../types'
 
@@ -57,6 +57,7 @@ export function useGrinds() {
   const [loading, setLoading] = useState(true)
 
   const today = todayStr()
+  const missedDaysChecked = useRef(false)
 
   // ── Fetch ────────────────────────────────────────────────
   const fetchGrinds = useCallback(async () => {
@@ -71,9 +72,35 @@ export function useGrinds() {
 
   useEffect(() => { fetchGrinds() }, [fetchGrinds])
 
+  // ── Realtime subscription ──────────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('grinds-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'grinds' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const row = payload.new as Grind
+            setGrinds(prev => prev.some(g => g.id === row.id) ? prev : [...prev, row])
+          } else if (payload.eventType === 'UPDATE') {
+            const row = payload.new as Grind
+            setGrinds(prev => prev.map(g => g.id === row.id ? row : g))
+          } else if (payload.eventType === 'DELETE') {
+            const oldId = (payload.old as { id: string }).id
+            setGrinds(prev => prev.filter(g => g.id !== oldId))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
   // ── Missed days detection (runs once after fetch) ────────
   useEffect(() => {
-    if (loading || grinds.length === 0) return
+    if (loading || grinds.length === 0 || missedDaysChecked.current) return
+    missedDaysChecked.current = true
 
     const missed: MissedDay[] = []
     const updates: { id: string; last_checked_date: string }[] = []
