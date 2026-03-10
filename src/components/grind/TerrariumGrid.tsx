@@ -162,7 +162,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, health
                       position: 'absolute',
                       left: '50%',
                       top: '50%',
-                      transform: 'rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
+                      transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -100%)',
                       transformOrigin: '0 0',
                       transformStyle: 'preserve-3d',
                     }}
@@ -198,7 +198,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, health
                       position: 'absolute',
                       left: '50%',
                       top: '50%',
-                      transform: 'rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
+                      transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -100%)',
                       transformOrigin: '0 0',
                     }}
                   >
