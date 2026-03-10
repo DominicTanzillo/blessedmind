@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 const DURATIONS = [5, 10, 15, 20, 25, 30, 45, 60]
 
@@ -11,10 +12,23 @@ interface Props {
 
 export default function PomodoroButton({ taskTitle, grindId, onStart, disabled }: Props) {
   const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState({ top: 0, right: 0 })
+
+  useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      })
+    }
+  }, [open])
 
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
         disabled={disabled}
         className="w-8 h-8 rounded-full flex items-center justify-center text-stone-300 hover:text-sage-500 hover:bg-sage-50 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
@@ -28,10 +42,13 @@ export default function PomodoroButton({ taskTitle, grindId, onStart, disabled }
         </svg>
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-lg border border-stone-200 p-2 min-w-[140px] animate-fade-up">
+          <div className="fixed inset-0" style={{ zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div
+            className="fixed bg-white rounded-xl shadow-lg border border-stone-200 p-2 min-w-[140px] animate-fade-up"
+            style={{ zIndex: 9999, top: pos.top, right: pos.right }}
+          >
             <p className="text-[10px] text-stone-400 font-medium uppercase tracking-wider px-2 pb-1">Focus for</p>
             <div className="grid grid-cols-2 gap-1">
               {DURATIONS.map(d => (
@@ -49,7 +66,8 @@ export default function PomodoroButton({ taskTitle, grindId, onStart, disabled }
               ))}
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   )
