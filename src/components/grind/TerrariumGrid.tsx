@@ -313,10 +313,10 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                 >
                   <div style={{
                     position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
+                    transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
                     transformOrigin: '0 0',
                   }}>
-                    <BushSVG stage={stage} size={34} colorVariant={pomodoroColorVariant(cell.colorIndex)} />
+                    <BushSVG stage={stage} size={40} colorVariant={pomodoroColorVariant(cell.colorIndex)} />
                   </div>
                 </div>
               )
