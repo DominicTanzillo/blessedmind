@@ -13,8 +13,8 @@ export default function WhiteRoseSVG({ size = 48 }: Props) {
       xmlns="http://www.w3.org/2000/svg"
       className="animate-plant-grow"
     >
-      {/* Soil line */}
-      <line x1="14" y1="42" x2="34" y2="42" stroke="#a8977a" strokeWidth="1.5" strokeLinecap="round" />
+      {/* Ground shadow */}
+      <ellipse cx="24" cy="42" rx="8" ry="1.5" fill="rgba(0,0,0,0.08)" />
 
       <g className="animate-plant-sway" style={{ transformOrigin: '24px 42px' }}>
         {/* Stem */}

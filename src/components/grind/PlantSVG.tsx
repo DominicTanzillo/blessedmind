@@ -92,8 +92,8 @@ export default function PlantSVG({ stage, size = 'md', colorVariant = 0, health 
         </defs>
       )}
 
-      {/* Soil line — always level */}
-      <line x1="8" y1="42" x2="40" y2="42" stroke="#a8977a" strokeWidth="1.5" strokeLinecap="round" />
+      {/* Ground shadow */}
+      <ellipse cx="24" cy="42" rx="12" ry="2" fill="rgba(0,0,0,0.08)" />
 
       {/* Plant group — droop + filter applied here only */}
       <g filter={filterId ? `url(#${filterId})` : undefined} style={droopStyle} className={healthClass}>

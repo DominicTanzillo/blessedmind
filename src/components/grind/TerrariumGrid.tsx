@@ -1,11 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import PlantSVG from './PlantSVG'
+import BushSVG from './BushSVG'
 import WhiteRoseSVG from './WhiteRoseSVG'
 import { plantStage } from '../../hooks/useGrinds'
 import type { Grind, Pomodoro, PlantHealth } from '../../types'
 
 const MIN_GRID = 8
-const CELL_SIZE = 44 // slightly larger for breathing room
+const CELL_SIZE = 44
 
 function pomodoroStage(durationMinutes: number): 0 | 1 | 2 | 3 | 4 {
   if (durationMinutes >= 60) return 4
@@ -17,6 +18,19 @@ function pomodoroStage(durationMinutes: number): 0 | 1 | 2 | 3 | 4 {
 function pomodoroColorVariant(index: number): number {
   return index % 5
 }
+
+/** Deterministic pseudo-random from cell coords */
+function cellHash(r: number, c: number): number {
+  let h = r * 7919 + c * 104729
+  h = ((h >> 16) ^ h) * 0x45d9f3b
+  h = ((h >> 16) ^ h) * 0x45d9f3b
+  return ((h >> 16) ^ h) & 0x7fffffff
+}
+
+type TooltipInfo =
+  | { type: 'habit'; title: string; createdAt: string; streak: number; bestStreak: number; health: PlantHealth }
+  | { type: 'pomodoro'; taskTitle: string; durationMinutes: number; completedAt: string }
+  | { type: 'prayer' }
 
 type CellContent =
   | { type: 'habit'; grind: Grind; corner: 'tl' | 'tr' | 'bl' | 'br'; health: PlantHealth }
@@ -33,15 +47,15 @@ interface Props {
 }
 
 export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayerCount, healthMap }: Props) {
-  const { grid, gridSize } = useMemo(() => {
+  const [tooltip, setTooltip] = useState<{ info: TooltipInfo; x: number; y: number } | null>(null)
+
+  const { grid, gridSize, totalItems } = useMemo(() => {
     const allHabits = [...grinds, ...retiredGrinds].slice(0, 4)
-    const totalItems = allHabits.length * 4 + pomodoros.length + prayerCount
-    // Expand grid if needed — always even so habits center nicely
+    const total = allHabits.length * 4 + pomodoros.length + prayerCount
     let size = MIN_GRID
-    while (size * size < totalItems + 8) size += 2
+    while (size * size < total + 8) size += 2
 
     const center = size / 2
-    // 2x2 habit positions near center
     const habitPositions: [number, number][] = [
       [center - 2, center - 2],
       [center - 2, center],
@@ -67,7 +81,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
     )
     const occupied = new Set<string>()
 
-    // Place habits
+    // Place habits (active + retired)
     allHabits.forEach((grind, i) => {
       const [r, c] = habitPositions[i]
       const health = healthMap.get(grind.id) ?? 'healthy'
@@ -101,16 +115,33 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
       prayersPlaced++
     }
 
-    return { grid: g, gridSize: size }
+    return { grid: g, gridSize: size, totalItems: total }
   }, [grinds, retiredGrinds, pomodoros, prayerCount, healthMap])
 
+  const handlePlantClick = useCallback((info: TooltipInfo, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const rect = (e.currentTarget as HTMLElement).closest('.terrarium-container')?.getBoundingClientRect()
+    if (!rect) return
+    setTooltip({
+      info,
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    })
+  }, [])
+
+  const dismissTooltip = useCallback(() => setTooltip(null), [])
+
   const gridPx = gridSize * CELL_SIZE
+
+  // Decoration thresholds
+  const showStream = totalItems >= 10
+  const showBirdbath = totalItems >= 20
 
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center gap-3">
         <div className="h-px flex-1 bg-stone-200" />
-        <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Terrarium</span>
+        <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Garden</span>
         <div className="h-px flex-1 bg-stone-200" />
       </div>
 
@@ -119,6 +150,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
         style={{ perspective: '900px', perspectiveOrigin: '50% 40%' }}
       >
         <div
+          className="terrarium-container"
           style={{
             width: gridPx,
             height: gridPx,
@@ -126,25 +158,101 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
             transformStyle: 'preserve-3d',
             position: 'relative',
           }}
+          onClick={dismissTooltip}
         >
-          {/* Soil */}
+          {/* Green lawn ground */}
           <div
             className="absolute inset-0 rounded-lg"
             style={{
-              background: 'linear-gradient(135deg, #f5f0e8 0%, #e8e0d0 50%, #ddd5c5 100%)',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
+              background: 'linear-gradient(135deg, #5a9e4a 0%, #4a8e3a 30%, #3d7e2d 60%, #357025 100%)',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+            }}
+          />
+
+          {/* Subtle grass texture overlay */}
+          <div
+            className="absolute inset-0 rounded-lg"
+            style={{
+              background: 'radial-gradient(ellipse at 30% 40%, rgba(120,180,80,0.3) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(80,150,60,0.2) 0%, transparent 40%)',
             }}
           />
 
           {/* Grid lines */}
           {Array.from({ length: gridSize + 1 }).map((_, i) => (
             <div key={`line-${i}`}>
-              <div className="absolute bg-amber-900/8" style={{ left: 0, right: 0, top: i * CELL_SIZE, height: 1 }} />
-              <div className="absolute bg-amber-900/8" style={{ top: 0, bottom: 0, left: i * CELL_SIZE, width: 1 }} />
+              <div className="absolute" style={{ left: 0, right: 0, top: i * CELL_SIZE, height: 1, background: 'rgba(30,80,20,0.08)' }} />
+              <div className="absolute" style={{ top: 0, bottom: 0, left: i * CELL_SIZE, width: 1, background: 'rgba(30,80,20,0.08)' }} />
             </div>
           ))}
 
-          {/* Plants */}
+          {/* Stream decoration */}
+          {showStream && (
+            <svg
+              className="absolute"
+              style={{ left: 0, top: 0, width: gridPx, height: gridPx, pointerEvents: 'none', zIndex: 1 }}
+              viewBox={`0 0 ${gridPx} ${gridPx}`}
+            >
+              <defs>
+                <linearGradient id="stream-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#6ab8d7" stopOpacity="0.5" />
+                  <stop offset="50%" stopColor="#5aaac8" stopOpacity="0.6" />
+                  <stop offset="100%" stopColor="#4a9ab8" stopOpacity="0.4" />
+                </linearGradient>
+              </defs>
+              <path
+                d={`M0,${gridPx * 0.3} Q${gridPx * 0.2},${gridPx * 0.25} ${gridPx * 0.35},${gridPx * 0.4} Q${gridPx * 0.5},${gridPx * 0.55} ${gridPx * 0.65},${gridPx * 0.5} Q${gridPx * 0.8},${gridPx * 0.45} ${gridPx},${gridPx * 0.6}`}
+                stroke="url(#stream-grad)"
+                strokeWidth="6"
+                fill="none"
+                strokeLinecap="round"
+                opacity="0.7"
+              />
+              <path
+                d={`M0,${gridPx * 0.3} Q${gridPx * 0.2},${gridPx * 0.25} ${gridPx * 0.35},${gridPx * 0.4} Q${gridPx * 0.5},${gridPx * 0.55} ${gridPx * 0.65},${gridPx * 0.5} Q${gridPx * 0.8},${gridPx * 0.45} ${gridPx},${gridPx * 0.6}`}
+                stroke="rgba(255,255,255,0.15)"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray="4 8"
+              >
+                <animate attributeName="stroke-dashoffset" from="0" to="-24" dur="3s" repeatCount="indefinite" />
+              </path>
+            </svg>
+          )}
+
+          {/* Birdbath decoration */}
+          {showBirdbath && (
+            <div
+              className="absolute"
+              style={{
+                left: CELL_SIZE * 1,
+                top: CELL_SIZE * 1,
+                width: CELL_SIZE,
+                height: CELL_SIZE,
+                transformStyle: 'preserve-3d',
+                zIndex: 2,
+              }}
+            >
+              <div style={{
+                position: 'absolute', left: '50%', top: '50%',
+                transform: 'translateZ(3px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
+                transformOrigin: '0 0',
+              }}>
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                  {/* Pedestal */}
+                  <rect x="14" y="20" width="4" height="8" rx="1" fill="#a0968a" />
+                  <rect x="11" y="27" width="10" height="3" rx="1" fill="#8a8078" />
+                  {/* Bowl */}
+                  <ellipse cx="16" cy="20" rx="10" ry="4" fill="#b0a698" />
+                  <ellipse cx="16" cy="19.5" rx="8" ry="3" fill="#c8e0f0" />
+                  {/* Water shimmer */}
+                  <ellipse cx="14" cy="19" rx="3" ry="1" fill="rgba(255,255,255,0.3)" />
+                </svg>
+              </div>
+            </div>
+          )}
+
+          {/* Plants and decorations */}
           {grid.flat().map((cell, i) => {
             const r = Math.floor(i / gridSize)
             const c = i % gridSize
@@ -155,26 +263,30 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               return (
                 <div
                   key={`${r}-${c}`}
-                  className="absolute"
+                  className="absolute cursor-pointer"
                   style={{
                     left: c * CELL_SIZE,
                     top: r * CELL_SIZE,
                     width: CELL_SIZE * 2,
                     height: CELL_SIZE * 2,
                     transformStyle: 'preserve-3d',
+                    zIndex: 5,
                   }}
+                  onClick={(e) => handlePlantClick({
+                    type: 'habit',
+                    title: cell.grind.title,
+                    createdAt: cell.grind.created_at,
+                    streak: cell.grind.current_streak,
+                    bestStreak: cell.grind.best_streak,
+                    health: cell.health,
+                  }, e)}
                 >
                   <div style={{
                     position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -100%)',
+                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -80%)',
                     transformOrigin: '0 0', transformStyle: 'preserve-3d',
                   }}>
-                    <div className="flex flex-col items-center">
-                      <PlantSVG stage={stage} size="lg" colorVariant={cell.grind.color_variant} health={cell.health} />
-                      <span className="text-[8px] text-stone-600 font-medium truncate text-center leading-tight mt-0.5 whitespace-nowrap" style={{ maxWidth: '90px' }}>
-                        {cell.grind.title}
-                      </span>
-                    </div>
+                    <PlantSVG stage={stage} size="lg" colorVariant={cell.grind.color_variant} health={cell.health} />
                   </div>
                 </div>
               )
@@ -185,20 +297,26 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               return (
                 <div
                   key={`${r}-${c}`}
-                  className="absolute"
+                  className="absolute cursor-pointer"
                   style={{
                     left: c * CELL_SIZE, top: r * CELL_SIZE,
                     width: CELL_SIZE, height: CELL_SIZE,
                     transformStyle: 'preserve-3d',
+                    zIndex: 3,
                   }}
-                  title={`${cell.pomodoro.task_title} (${cell.pomodoro.duration_minutes}m)`}
+                  onClick={(e) => handlePlantClick({
+                    type: 'pomodoro',
+                    taskTitle: cell.pomodoro.task_title,
+                    durationMinutes: cell.pomodoro.duration_minutes,
+                    completedAt: cell.pomodoro.completed_at,
+                  }, e)}
                 >
                   <div style={{
                     position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -100%)',
+                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
                     transformOrigin: '0 0',
                   }}>
-                    <PlantSVG stage={stage} size="sm" colorVariant={pomodoroColorVariant(cell.colorIndex)} />
+                    <BushSVG stage={stage} size={34} colorVariant={pomodoroColorVariant(cell.colorIndex)} />
                   </div>
                 </div>
               )
@@ -208,40 +326,119 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               return (
                 <div
                   key={`${r}-${c}`}
-                  className="absolute"
+                  className="absolute cursor-pointer"
                   style={{
                     left: c * CELL_SIZE, top: r * CELL_SIZE,
                     width: CELL_SIZE, height: CELL_SIZE,
                     transformStyle: 'preserve-3d',
+                    zIndex: 3,
                   }}
-                  title="Prayer completed"
+                  onClick={(e) => handlePlantClick({ type: 'prayer' }, e)}
                 >
                   <div style={{
                     position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -100%)',
+                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
                     transformOrigin: '0 0',
                   }}>
-                    <WhiteRoseSVG size={40} />
+                    <WhiteRoseSVG size={36} />
                   </div>
                 </div>
               )
             }
 
-            // Empty — subtle grass
+            // Empty cell — ambient decorations
+            const hash = cellHash(r, c)
             return (
               <div
                 key={`${r}-${c}`}
                 className="absolute"
                 style={{ left: c * CELL_SIZE, top: r * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE }}
               >
-                {(r + c) % 3 === 0 && (
-                  <div className="absolute rounded-full bg-sage-300/15"
-                    style={{ width: 4, height: 4, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}
-                  />
+                {hash % 7 === 0 && (
+                  // Grass tuft
+                  <svg className="absolute" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }} width="12" height="10" viewBox="0 0 12 10" fill="none">
+                    <path d="M6 9 L4 3 L6 5 L8 2 L6 5 L9 4 L6 9Z" fill="rgba(80,140,50,0.25)" />
+                  </svg>
+                )}
+                {hash % 11 === 0 && (
+                  // Small stone
+                  <svg className="absolute" style={{ left: '40%', top: '55%', transform: 'translate(-50%, -50%)' }} width="8" height="6" viewBox="0 0 8 6" fill="none">
+                    <ellipse cx="4" cy="3" rx="3.5" ry="2.5" fill="rgba(120,115,100,0.2)" />
+                  </svg>
+                )}
+                {hash % 17 === 0 && (
+                  // Tiny flower
+                  <svg className="absolute" style={{ left: '60%', top: '45%', transform: 'translate(-50%, -50%)' }} width="8" height="8" viewBox="0 0 8 8" fill="none">
+                    <circle cx="4" cy="4" r="2" fill="rgba(255,220,180,0.3)" />
+                    <circle cx="4" cy="4" r="0.8" fill="rgba(220,180,100,0.4)" />
+                  </svg>
+                )}
+                {hash % 23 === 0 && (
+                  // Mushroom
+                  <svg className="absolute" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }} width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <rect x="4.2" y="6" width="1.6" height="3" rx="0.5" fill="rgba(200,190,170,0.3)" />
+                    <ellipse cx="5" cy="6" rx="3" ry="2" fill="rgba(180,100,80,0.2)" />
+                    <ellipse cx="4" cy="5.5" rx="0.5" ry="0.4" fill="rgba(255,255,255,0.2)" />
+                  </svg>
                 )}
               </div>
             )
           })}
+
+          {/* Tooltip overlay */}
+          {tooltip && (
+            <div
+              className="absolute"
+              style={{
+                left: tooltip.x,
+                top: tooltip.y - 10,
+                transform: 'rotateZ(-45deg) rotateX(-55deg) translateZ(20px)',
+                transformStyle: 'preserve-3d',
+                zIndex: 100,
+              }}
+            >
+              <div
+                className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-stone-200 px-3 py-2 text-left"
+                style={{
+                  transform: 'translate(-50%, -100%)',
+                  minWidth: 140,
+                  maxWidth: 200,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {tooltip.info.type === 'habit' && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-stone-800">{tooltip.info.title}</p>
+                    <p className="text-xs text-stone-400">
+                      Planted {new Date(tooltip.info.createdAt).toLocaleDateString()}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-sage-600 font-medium">{tooltip.info.streak}d streak</span>
+                      <span className="text-stone-300">best {tooltip.info.bestStreak}d</span>
+                    </div>
+                    {tooltip.info.health !== 'healthy' && (
+                      <p className="text-xs text-amber-600 capitalize">{tooltip.info.health}</p>
+                    )}
+                  </div>
+                )}
+                {tooltip.info.type === 'pomodoro' && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-stone-800">{tooltip.info.taskTitle}</p>
+                    <p className="text-xs text-stone-400">{tooltip.info.durationMinutes} min focus</p>
+                    <p className="text-xs text-stone-300">
+                      {new Date(tooltip.info.completedAt).toLocaleDateString()}{' '}
+                      {new Date(tooltip.info.completedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                    </p>
+                  </div>
+                )}
+                {tooltip.info.type === 'prayer' && (
+                  <div>
+                    <p className="text-sm font-medium text-stone-800">Prayer completed</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
