@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import TaskCard from './TaskCard'
 import GrindCard from '../grind/GrindCard'
+import PomodoroButton from '../pomodoro/PomodoroButton'
 import { getGreeting, getTimeContext, getBatchCompleteMessage, getEmptyStateMessage } from '../../lib/celebrations'
 import { playBlessedDay, playRefresh } from '../../lib/sounds'
 import type { Task, Grind, PlantHealth } from '../../types'
@@ -21,6 +22,8 @@ interface Props {
   completedGrindCount: number
   onCompleteGrind: (id: string) => void
   healthMap: Map<string, PlantHealth>
+  onStartPomodoro: (minutes: number, title: string, grindId: string | null) => void
+  pomodoroActive: boolean
 }
 
 export default function DashboardView({
@@ -39,6 +42,8 @@ export default function DashboardView({
   completedGrindCount,
   onCompleteGrind,
   healthMap,
+  onStartPomodoro,
+  pomodoroActive,
 }: Props) {
   const [blessedMessage] = useState(() => getBatchCompleteMessage())
   const greeting = getGreeting()
@@ -205,10 +210,22 @@ export default function DashboardView({
       {/* Active grinds first, then task cards */}
       <div className="space-y-3">
         {activeGrinds.map((g, i) => (
-          <GrindCard key={g.id} grind={g} health={healthMap.get(g.id)} onComplete={onCompleteGrind} index={i} />
+          <div key={g.id} className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <GrindCard grind={g} health={healthMap.get(g.id)} onComplete={onCompleteGrind} index={i} />
+            </div>
+            <PomodoroButton taskTitle={g.title} grindId={g.id} onStart={onStartPomodoro} disabled={pomodoroActive} />
+          </div>
         ))}
         {sortedBatch.map((task, i) => (
-          <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} index={activeGrinds.length + i} />
+          <div key={task.id} className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <TaskCard task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} index={activeGrinds.length + i} />
+            </div>
+            {!task.completed && (
+              <PomodoroButton taskTitle={task.title} onStart={onStartPomodoro} disabled={pomodoroActive} />
+            )}
+          </div>
         ))}
       </div>
 

@@ -62,3 +62,12 @@ export interface MissedDay {
   grindTitle: string
   date: string                  // YYYY-MM-DD
 }
+
+export interface Pomodoro {
+  id: string
+  task_title: string
+  grind_id: string | null
+  duration_minutes: number
+  completed_at: string
+  created_at: string
+}

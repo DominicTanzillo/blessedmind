@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import PlantSVG from './PlantSVG'
 import AddGrindForm from './AddGrindForm'
+import TerrariumGrid from './TerrariumGrid'
 import Modal from '../ui/Modal'
 import { plantStage, STAGE_NAMES } from '../../hooks/useGrinds'
-import type { Grind, NewGrind, PlantHealth } from '../../types'
+import type { Grind, NewGrind, PlantHealth, Pomodoro } from '../../types'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -37,9 +38,10 @@ interface Props {
   onRetire: (id: string) => void
   onReactivate: (id: string) => void
   onUncomplete: (id: string) => void
+  pomodoros: Pomodoro[]
 }
 
-export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onDelete, onUpdate, onRetire, onReactivate, onUncomplete }: Props) {
+export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onDelete, onUpdate, onRetire, onReactivate, onUncomplete, pomodoros }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedRetiredId, setSelectedRetiredId] = useState<string | null>(null)
@@ -103,12 +105,12 @@ export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onD
         </div>
       )}
 
-      {/* Terrarium */}
+      {/* Retired grinds management */}
       {retiredGrinds.length > 0 && (
         <div className="space-y-4 pt-2">
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-stone-200" />
-            <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Terrarium</span>
+            <span className="text-xs font-medium text-stone-400 uppercase tracking-wider">Retired</span>
             <div className="h-px flex-1 bg-stone-200" />
           </div>
 
@@ -125,11 +127,12 @@ export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onD
               />
             ))}
           </div>
-
-          {retiredGrinds.length >= 10 && (
-            <p className="text-center text-xs text-stone-400 italic">Terrarium is full</p>
-          )}
         </div>
+      )}
+
+      {/* Terrarium Grid */}
+      {(grinds.length > 0 || retiredGrinds.length > 0 || pomodoros.length > 0) && (
+        <TerrariumGrid grinds={grinds} retiredGrinds={retiredGrinds} pomodoros={pomodoros} healthMap={healthMap} />
       )}
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Plant a Seed">

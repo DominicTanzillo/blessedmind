@@ -4,6 +4,7 @@ import { useAuth } from './hooks/useAuth'
 import { useTasks } from './hooks/useTasks'
 import { useActiveBatch } from './hooks/useActiveBatch'
 import { useGrinds } from './hooks/useGrinds'
+import { usePomodoro } from './hooks/usePomodoro'
 import PasswordGate from './components/auth/PasswordGate'
 import AppShell from './components/layout/AppShell'
 import DashboardView from './components/dashboard/DashboardView'
@@ -13,6 +14,7 @@ import GrindView from './components/grind/GrindView'
 import PrayerView from './components/prayer/PrayerView'
 import MissedDaysDialog from './components/grind/MissedDaysDialog'
 import AddTaskForm from './components/inbox/AddTaskForm'
+import PomodoroOverlay from './components/pomodoro/PomodoroOverlay'
 import Modal from './components/ui/Modal'
 
 export default function App() {
@@ -43,6 +45,15 @@ export default function App() {
     generateNewBatch,
     loading: batchLoading,
   } = useActiveBatch(tasks, activeGrinds.length)
+  const {
+    pomodoros,
+    timerActive,
+    timerTaskTitle,
+    timerDuration,
+    remainingSeconds,
+    startTimer,
+    cancelTimer,
+  } = usePomodoro()
 
   const [addModalOpen, setAddModalOpen] = useState(false)
 
@@ -89,6 +100,8 @@ export default function App() {
       completedGrindCount={completedGrindCount}
       onCompleteGrind={completeGrind}
       healthMap={healthMap}
+      onStartPomodoro={startTimer}
+      pomodoroActive={timerActive}
     />
   )
 
@@ -126,6 +139,7 @@ export default function App() {
       onRetire={retireGrind}
       onReactivate={reactivateGrind}
       onUncomplete={uncompleteGrind}
+      pomodoros={pomodoros}
     />
   )
 
@@ -140,6 +154,15 @@ export default function App() {
           <Route path="pray" element={<PrayerView />} />
         </Route>
       </Routes>
+
+      {timerActive && (
+        <PomodoroOverlay
+          taskTitle={timerTaskTitle}
+          remainingSeconds={remainingSeconds}
+          durationMinutes={timerDuration}
+          onCancel={cancelTimer}
+        />
+      )}
 
       <Modal open={addModalOpen} onClose={handleAddClose} title="Brain Dump">
         <AddTaskForm onAdd={addTask} onClose={handleAddClose} taskCount={tasks.length} />
