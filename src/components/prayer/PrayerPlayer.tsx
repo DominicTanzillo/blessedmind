@@ -1,7 +1,28 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { Prayer } from '../../lib/prayers'
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5, 2]
+const TIMESTAMPS_KEY = 'prayer-timestamps'
+
+function loadTimestamps(prayerId: string): (number | null)[] {
+  try {
+    const stored = localStorage.getItem(TIMESTAMPS_KEY)
+    if (stored) {
+      const all = JSON.parse(stored)
+      return all[prayerId] ?? []
+    }
+  } catch { /* ignore */ }
+  return []
+}
+
+function saveTimestamps(prayerId: string, timestamps: (number | null)[]) {
+  try {
+    const stored = localStorage.getItem(TIMESTAMPS_KEY)
+    const all = stored ? JSON.parse(stored) : {}
+    all[prayerId] = timestamps
+    localStorage.setItem(TIMESTAMPS_KEY, JSON.stringify(all))
+  } catch { /* ignore */ }
+}
 
 interface Props {
   prayer: Prayer
@@ -15,6 +36,30 @@ export default function PrayerPlayer({ prayer, onBack }: Props) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [activeSection, setActiveSection] = useState(0)
+  const [calibrating, setCalibrating] = useState(false)
+  const [calibrateIndex, setCalibrateIndex] = useState(0)
+  const [timestamps, setTimestamps] = useState<(number | null)[]>(() => loadTimestamps(prayer.id))
+
+  // Merge hardcoded timestamps with localStorage overrides
+  const effectiveTimestamps = useMemo(() => {
+    return prayer.sections.map((s, i) => timestamps[i] ?? s.audioTimestamp ?? null)
+  }, [prayer.sections, timestamps])
+
+  const hasTimestamps = effectiveTimestamps.some(t => t !== null)
+
+  // Auto-sync active section with audio time
+  useEffect(() => {
+    if (!playing || calibrating || !hasTimestamps) return
+    // Find the last section whose timestamp <= currentTime
+    let matched = -1
+    for (let i = 0; i < effectiveTimestamps.length; i++) {
+      const ts = effectiveTimestamps[i]
+      if (ts !== null && currentTime >= ts) matched = i
+    }
+    if (matched >= 0 && matched !== activeSection) {
+      setActiveSection(matched)
+    }
+  }, [currentTime, playing, calibrating, hasTimestamps, effectiveTimestamps, activeSection])
 
   // Initialize audio
   useEffect(() => {
@@ -78,6 +123,46 @@ export default function PrayerPlayer({ prayer, onBack }: Props) {
     }
   }, [])
 
+  const startCalibration = useCallback(() => {
+    setCalibrating(true)
+    setCalibrateIndex(0)
+    setActiveSection(0)
+  }, [])
+
+  const markTimestamp = useCallback(() => {
+    const time = audioRef.current?.currentTime ?? 0
+    setTimestamps(prev => {
+      const next = [...prev]
+      while (next.length <= calibrateIndex) next.push(null)
+      next[calibrateIndex] = Math.round(time)
+      saveTimestamps(prayer.id, next)
+      return next
+    })
+    if (calibrateIndex < prayer.sections.length - 1) {
+      const nextIdx = calibrateIndex + 1
+      setCalibrateIndex(nextIdx)
+      setActiveSection(nextIdx)
+    } else {
+      setCalibrating(false)
+    }
+  }, [calibrateIndex, prayer.id, prayer.sections.length])
+
+  const skipCalibrationSection = useCallback(() => {
+    if (calibrateIndex < prayer.sections.length - 1) {
+      const nextIdx = calibrateIndex + 1
+      setCalibrateIndex(nextIdx)
+      setActiveSection(nextIdx)
+    } else {
+      setCalibrating(false)
+    }
+  }, [calibrateIndex, prayer.sections.length])
+
+  const clearTimestamps = useCallback(() => {
+    setTimestamps([])
+    saveTimestamps(prayer.id, [])
+    setCalibrating(false)
+  }, [prayer.id])
+
   function formatTime(s: number): string {
     const m = Math.floor(s / 60)
     const sec = Math.floor(s % 60)
@@ -110,55 +195,118 @@ export default function PrayerPlayer({ prayer, onBack }: Props) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-lg font-semibold text-stone-800">{prayer.shortTitle}</h1>
           <p className="text-xs text-stone-400">{prayer.sections.length} sections</p>
         </div>
+        {prayer.audioFile && (
+          <button
+            onClick={calibrating ? () => setCalibrating(false) : startCalibration}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+              calibrating
+                ? 'bg-amber-100 text-amber-700'
+                : hasTimestamps
+                  ? 'text-stone-400 hover:bg-stone-100'
+                  : 'bg-sage-100 text-sage-700 hover:bg-sage-200'
+            }`}
+          >
+            {calibrating ? 'Cancel' : hasTimestamps ? 'Re-sync' : 'Sync to audio'}
+          </button>
+        )}
       </div>
+
+      {/* Calibration banner */}
+      {calibrating && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+          <p className="text-sm text-amber-800 font-medium">
+            Syncing: tap "Mark" when you hear this section start
+          </p>
+          <p className="text-xs text-amber-600">
+            Section {calibrateIndex + 1} of {prayer.sections.length}: {prayer.sections[calibrateIndex].title}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={markTimestamp}
+              className="px-4 py-1.5 rounded-lg bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition"
+            >
+              Mark ({formatTime(currentTime)})
+            </button>
+            <button
+              onClick={skipCalibrationSection}
+              className="px-3 py-1.5 rounded-lg text-amber-600 text-sm hover:bg-amber-100 transition"
+            >
+              Skip
+            </button>
+            <button
+              onClick={clearTimestamps}
+              className="px-3 py-1.5 rounded-lg text-amber-400 text-sm hover:bg-amber-100 transition ml-auto"
+            >
+              Clear all
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Prayer text sections */}
       <div className="space-y-3">
-        {prayer.sections.map((section, i) => (
-          <button
-            key={i}
-            onClick={() => setActiveSection(activeSection === i ? -1 : i)}
-            className={`w-full text-left rounded-xl border p-4 transition-all duration-300 ${
-              sectionColors[section.type]
-            } ${activeSection === i ? 'shadow-sm' : ''}`}
-          >
-            <div className="flex items-start gap-3">
-              <div className={`mt-0.5 flex-shrink-0 ${sectionIcons[section.type]}`}>
-                {section.type === 'sorrow' ? (
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                )}
+        {prayer.sections.map((section, i) => {
+          const ts = effectiveTimestamps[i]
+          return (
+            <button
+              key={i}
+              onClick={() => {
+                if (calibrating) return
+                if (ts !== null && audioRef.current) {
+                  audioRef.current.currentTime = ts
+                  setCurrentTime(ts)
+                }
+                setActiveSection(activeSection === i ? -1 : i)
+              }}
+              className={`w-full text-left rounded-xl border p-4 transition-all duration-300 ${
+                sectionColors[section.type]
+              } ${activeSection === i ? 'shadow-sm ring-2 ring-sage-300/50' : ''} ${
+                calibrating && i === calibrateIndex ? 'ring-2 ring-amber-400' : ''
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`mt-0.5 flex-shrink-0 ${sectionIcons[section.type]}`}>
+                  {section.type === 'sorrow' ? (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-stone-700">{section.title}</p>
+                    {ts !== null && !calibrating && (
+                      <span className="text-[10px] text-stone-300 tabular-nums">{formatTime(ts)}</span>
+                    )}
+                  </div>
+                  {activeSection === i && (
+                    <p className="text-sm text-stone-600 mt-2 leading-relaxed whitespace-pre-line animate-fade-up">
+                      {section.text}
+                    </p>
+                  )}
+                </div>
+                <svg
+                  className={`w-4 h-4 text-stone-300 flex-shrink-0 transition-transform duration-200 ${
+                    activeSection === i ? 'rotate-90' : ''
+                  }`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-stone-700">{section.title}</p>
-                {activeSection === i && (
-                  <p className="text-sm text-stone-600 mt-2 leading-relaxed whitespace-pre-line animate-fade-up">
-                    {section.text}
-                  </p>
-                )}
-              </div>
-              <svg
-                className={`w-4 h-4 text-stone-300 flex-shrink-0 transition-transform duration-200 ${
-                  activeSection === i ? 'rotate-90' : ''
-                }`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
-          </button>
-        ))}
+            </button>
+          )
+        })}
       </div>
 
       {/* Fixed audio player */}
