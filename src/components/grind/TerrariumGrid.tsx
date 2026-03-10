@@ -50,13 +50,16 @@ type CellContent =
   | { type: 'pomodoro'; pomodoro: Pomodoro; colorIndex: number }
   | { type: 'empty' }
 
+// The ground tilts but plants must stand upright.
+// Parent applies: rotateX(55deg) rotateZ(45deg)
+// To undo on children: rotateZ(-45deg) rotateX(-55deg)
+// preserve-3d must chain through all ancestors.
+
 export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, healthMap }: Props) {
-  // Build grid
   const grid: CellContent[][] = Array.from({ length: GRID_SIZE }, () =>
     Array.from({ length: GRID_SIZE }, () => ({ type: 'empty' as const }))
   )
 
-  // Place up to 4 habits (active first, then retired)
   const allHabits = [...grinds, ...retiredGrinds].slice(0, 4)
   const occupiedCells = new Set<string>()
 
@@ -73,7 +76,6 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, health
     occupiedCells.add(`${r + 1},${c + 1}`)
   })
 
-  // Place pomodoros in spiral order, newest first
   const sortedPomodoros = [...pomodoros].sort(
     (a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()
   )
@@ -86,8 +88,8 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, health
     pomIndex++
   }
 
-  // Cell size for isometric layout
   const cellSize = 40
+  const gridPx = GRID_SIZE * cellSize
 
   return (
     <div className="space-y-4 pt-2">
@@ -97,112 +99,87 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, health
         <div className="h-px flex-1 bg-stone-200" />
       </div>
 
-      {/* Isometric container */}
-      <div className="flex justify-center overflow-hidden" style={{ paddingTop: '20px', paddingBottom: '40px' }}>
+      {/* Isometric wrapper — perspective on the outermost container */}
+      <div
+        className="flex justify-center"
+        style={{ perspective: '900px', perspectiveOrigin: '50% 40%' }}
+      >
+        {/* Ground plane — rotated into isometric view */}
         <div
           style={{
+            width: gridPx,
+            height: gridPx,
             transform: 'rotateX(55deg) rotateZ(45deg)',
             transformStyle: 'preserve-3d',
-            perspective: '800px',
+            position: 'relative',
           }}
         >
+          {/* Soil surface */}
           <div
-            className="relative"
+            className="absolute inset-0 rounded-lg"
             style={{
-              width: GRID_SIZE * cellSize,
-              height: GRID_SIZE * cellSize,
+              background: 'linear-gradient(135deg, #f5f0e8 0%, #e8e0d0 50%, #ddd5c5 100%)',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
             }}
-          >
-            {/* Ground plane */}
-            <div
-              className="absolute inset-0 rounded-lg"
-              style={{
-                background: 'linear-gradient(135deg, #f5f0e8 0%, #e8e0d0 50%, #ddd5c5 100%)',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-              }}
-            />
+          />
 
-            {/* Grid lines */}
-            {Array.from({ length: GRID_SIZE + 1 }).map((_, i) => (
-              <div key={`h-${i}`}>
+          {/* Grid lines on the ground */}
+          {Array.from({ length: GRID_SIZE + 1 }).map((_, i) => (
+            <div key={`line-${i}`}>
+              <div
+                className="absolute bg-amber-900/8"
+                style={{ left: 0, right: 0, top: i * cellSize, height: 1 }}
+              />
+              <div
+                className="absolute bg-amber-900/8"
+                style={{ top: 0, bottom: 0, left: i * cellSize, width: 1 }}
+              />
+            </div>
+          ))}
+
+          {/* Plants — each cell positioned absolutely, plant counter-rotated */}
+          {grid.flat().map((cell, i) => {
+            const r = Math.floor(i / GRID_SIZE)
+            const c = i % GRID_SIZE
+
+            if (cell.type === 'habit') {
+              if (cell.corner !== 'tl') return null
+              const stage = plantStage(cell.grind.current_streak)
+              return (
                 <div
-                  className="absolute bg-amber-900/5"
-                  style={{ left: 0, right: 0, top: i * cellSize, height: 1 }}
-                />
-                <div
-                  className="absolute bg-amber-900/5"
-                  style={{ top: 0, bottom: 0, left: i * cellSize, width: 1 }}
-                />
-              </div>
-            ))}
-
-            {/* Cells */}
-            {grid.flat().map((cell, i) => {
-              const r = Math.floor(i / GRID_SIZE)
-              const c = i % GRID_SIZE
-
-              if (cell.type === 'habit') {
-                if (cell.corner !== 'tl') return null
-                const stage = plantStage(cell.grind.current_streak)
-                return (
+                  key={`${r}-${c}`}
+                  className="absolute"
+                  style={{
+                    left: c * cellSize,
+                    top: r * cellSize,
+                    width: cellSize * 2,
+                    height: cellSize * 2,
+                    transformStyle: 'preserve-3d',
+                  }}
+                >
                   <div
-                    key={`${r}-${c}`}
-                    className="absolute flex items-end justify-center"
                     style={{
-                      left: c * cellSize,
-                      top: r * cellSize,
-                      width: cellSize * 2,
-                      height: cellSize * 2,
+                      position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      transform: 'rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
+                      transformOrigin: '0 0',
+                      transformStyle: 'preserve-3d',
                     }}
                   >
-                    {/* Counter-rotate plant to stand upright */}
-                    <div
-                      style={{
-                        transform: 'rotateZ(-45deg) rotateX(-55deg)',
-                        transformOrigin: 'bottom center',
-                      }}
-                    >
-                      <div className="flex flex-col items-center">
-                        <PlantSVG stage={stage} size="lg" colorVariant={cell.grind.color_variant} health={cell.health} />
-                        <span
-                          className="text-[8px] text-stone-600 font-medium truncate text-center leading-tight mt-0.5"
-                          style={{ maxWidth: '80px' }}
-                        >
-                          {cell.grind.title}
-                        </span>
-                      </div>
+                    <div className="flex flex-col items-center">
+                      <PlantSVG stage={stage} size="lg" colorVariant={cell.grind.color_variant} health={cell.health} />
+                      <span className="text-[8px] text-stone-600 font-medium truncate text-center leading-tight mt-0.5 whitespace-nowrap" style={{ maxWidth: '90px' }}>
+                        {cell.grind.title}
+                      </span>
                     </div>
                   </div>
-                )
-              }
+                </div>
+              )
+            }
 
-              if (cell.type === 'pomodoro') {
-                const stage = pomodoroStage(cell.pomodoro.duration_minutes)
-                return (
-                  <div
-                    key={`${r}-${c}`}
-                    className="absolute flex items-end justify-center"
-                    style={{
-                      left: c * cellSize,
-                      top: r * cellSize,
-                      width: cellSize,
-                      height: cellSize,
-                    }}
-                    title={`${cell.pomodoro.task_title} (${cell.pomodoro.duration_minutes}m)`}
-                  >
-                    <div
-                      style={{
-                        transform: 'rotateZ(-45deg) rotateX(-55deg)',
-                        transformOrigin: 'bottom center',
-                      }}
-                    >
-                      <PlantSVG stage={stage} size="sm" colorVariant={pomodoroColorVariant(cell.colorIndex)} />
-                    </div>
-                  </div>
-                )
-              }
-
-              // Empty soil cell — subtle grass patches
+            if (cell.type === 'pomodoro') {
+              const stage = pomodoroStage(cell.pomodoro.duration_minutes)
               return (
                 <div
                   key={`${r}-${c}`}
@@ -212,24 +189,50 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, health
                     top: r * cellSize,
                     width: cellSize,
                     height: cellSize,
+                    transformStyle: 'preserve-3d',
                   }}
+                  title={`${cell.pomodoro.task_title} (${cell.pomodoro.duration_minutes}m)`}
                 >
-                  {(r + c) % 3 === 0 && (
-                    <div
-                      className="absolute rounded-full bg-sage-200/20"
-                      style={{
-                        width: 6,
-                        height: 6,
-                        left: '50%',
-                        top: '50%',
-                        transform: 'translate(-50%, -50%)',
-                      }}
-                    />
-                  )}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      transform: 'rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
+                      transformOrigin: '0 0',
+                    }}
+                  >
+                    <PlantSVG stage={stage} size="sm" colorVariant={pomodoroColorVariant(cell.colorIndex)} />
+                  </div>
                 </div>
               )
-            })}
-          </div>
+            }
+
+            // Empty soil — subtle dots
+            return (
+              <div
+                key={`${r}-${c}`}
+                className="absolute"
+                style={{
+                  left: c * cellSize,
+                  top: r * cellSize,
+                  width: cellSize,
+                  height: cellSize,
+                }}
+              >
+                {(r + c) % 3 === 0 && (
+                  <div
+                    className="absolute rounded-full bg-sage-300/15"
+                    style={{
+                      width: 4, height: 4,
+                      left: '50%', top: '50%',
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 
