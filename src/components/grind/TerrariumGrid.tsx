@@ -86,6 +86,9 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, health
     pomIndex++
   }
 
+  // Cell size for isometric layout
+  const cellSize = 40
+
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center gap-3">
@@ -94,57 +97,140 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, health
         <div className="h-px flex-1 bg-stone-200" />
       </div>
 
-      <div
-        className="grid gap-0.5 mx-auto rounded-2xl bg-gradient-to-b from-amber-50/50 to-sage-50/30 border border-stone-200 p-2 overflow-hidden"
-        style={{
-          gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
-          maxWidth: '360px',
-        }}
-      >
-        {grid.flat().map((cell, i) => {
-          const r = Math.floor(i / GRID_SIZE)
-          const c = i % GRID_SIZE
+      {/* Isometric container */}
+      <div className="flex justify-center overflow-hidden" style={{ paddingTop: '20px', paddingBottom: '40px' }}>
+        <div
+          style={{
+            transform: 'rotateX(55deg) rotateZ(45deg)',
+            transformStyle: 'preserve-3d',
+            perspective: '800px',
+          }}
+        >
+          <div
+            className="relative"
+            style={{
+              width: GRID_SIZE * cellSize,
+              height: GRID_SIZE * cellSize,
+            }}
+          >
+            {/* Ground plane */}
+            <div
+              className="absolute inset-0 rounded-lg"
+              style={{
+                background: 'linear-gradient(135deg, #f5f0e8 0%, #e8e0d0 50%, #ddd5c5 100%)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+              }}
+            />
 
-          if (cell.type === 'habit') {
-            // Only render from top-left corner, span 2x2
-            if (cell.corner !== 'tl') {
-              return <div key={`${r}-${c}`} className="hidden" />
-            }
-            const stage = plantStage(cell.grind.current_streak)
-            return (
-              <div
-                key={`${r}-${c}`}
-                className="flex items-center justify-center bg-sage-50/50 rounded-lg"
-                style={{ gridColumn: 'span 2', gridRow: 'span 2' }}
-              >
-                <div className="flex flex-col items-center gap-0.5 p-1">
-                  <PlantSVG stage={stage} size="md" colorVariant={cell.grind.color_variant} health={cell.health} />
-                  <span className="text-[9px] text-stone-500 font-medium truncate max-w-[70px] leading-tight text-center">
-                    {cell.grind.title}
-                  </span>
+            {/* Grid lines */}
+            {Array.from({ length: GRID_SIZE + 1 }).map((_, i) => (
+              <div key={`h-${i}`}>
+                <div
+                  className="absolute bg-amber-900/5"
+                  style={{ left: 0, right: 0, top: i * cellSize, height: 1 }}
+                />
+                <div
+                  className="absolute bg-amber-900/5"
+                  style={{ top: 0, bottom: 0, left: i * cellSize, width: 1 }}
+                />
+              </div>
+            ))}
+
+            {/* Cells */}
+            {grid.flat().map((cell, i) => {
+              const r = Math.floor(i / GRID_SIZE)
+              const c = i % GRID_SIZE
+
+              if (cell.type === 'habit') {
+                if (cell.corner !== 'tl') return null
+                const stage = plantStage(cell.grind.current_streak)
+                return (
+                  <div
+                    key={`${r}-${c}`}
+                    className="absolute flex items-end justify-center"
+                    style={{
+                      left: c * cellSize,
+                      top: r * cellSize,
+                      width: cellSize * 2,
+                      height: cellSize * 2,
+                    }}
+                  >
+                    {/* Counter-rotate plant to stand upright */}
+                    <div
+                      style={{
+                        transform: 'rotateZ(-45deg) rotateX(-55deg)',
+                        transformOrigin: 'bottom center',
+                      }}
+                    >
+                      <div className="flex flex-col items-center">
+                        <PlantSVG stage={stage} size="lg" colorVariant={cell.grind.color_variant} health={cell.health} />
+                        <span
+                          className="text-[8px] text-stone-600 font-medium truncate text-center leading-tight mt-0.5"
+                          style={{ maxWidth: '80px' }}
+                        >
+                          {cell.grind.title}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
+              if (cell.type === 'pomodoro') {
+                const stage = pomodoroStage(cell.pomodoro.duration_minutes)
+                return (
+                  <div
+                    key={`${r}-${c}`}
+                    className="absolute flex items-end justify-center"
+                    style={{
+                      left: c * cellSize,
+                      top: r * cellSize,
+                      width: cellSize,
+                      height: cellSize,
+                    }}
+                    title={`${cell.pomodoro.task_title} (${cell.pomodoro.duration_minutes}m)`}
+                  >
+                    <div
+                      style={{
+                        transform: 'rotateZ(-45deg) rotateX(-55deg)',
+                        transformOrigin: 'bottom center',
+                      }}
+                    >
+                      <PlantSVG stage={stage} size="sm" colorVariant={pomodoroColorVariant(cell.colorIndex)} />
+                    </div>
+                  </div>
+                )
+              }
+
+              // Empty soil cell — subtle grass patches
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className="absolute"
+                  style={{
+                    left: c * cellSize,
+                    top: r * cellSize,
+                    width: cellSize,
+                    height: cellSize,
+                  }}
+                >
+                  {(r + c) % 3 === 0 && (
+                    <div
+                      className="absolute rounded-full bg-sage-200/20"
+                      style={{
+                        width: 6,
+                        height: 6,
+                        left: '50%',
+                        top: '50%',
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                    />
+                  )}
                 </div>
-              </div>
-            )
-          }
-
-          if (cell.type === 'pomodoro') {
-            const stage = pomodoroStage(cell.pomodoro.duration_minutes)
-            return (
-              <div
-                key={`${r}-${c}`}
-                className="flex items-end justify-center aspect-square"
-                title={`${cell.pomodoro.task_title} (${cell.pomodoro.duration_minutes}m)`}
-              >
-                <PlantSVG stage={stage} size="sm" colorVariant={pomodoroColorVariant(cell.colorIndex)} />
-              </div>
-            )
-          }
-
-          // Empty cell — soil
-          return (
-            <div key={`${r}-${c}`} className="aspect-square rounded-sm bg-amber-50/30" />
-          )
-        })}
+              )
+            })}
+          </div>
+        </div>
       </div>
 
       {pomodoros.length > 0 && (
