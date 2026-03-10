@@ -1,4 +1,4 @@
-import PlantSVG from '../grind/PlantSVG'
+import BushSVG from '../grind/BushSVG'
 
 interface Props {
   taskTitle: string
@@ -28,9 +28,9 @@ export default function PomodoroOverlay({ taskTitle, remainingSeconds, durationM
       <div className="max-w-2xl mx-auto pointer-events-auto">
         <div className="bg-white/95 backdrop-blur-md rounded-b-2xl shadow-lg border border-t-0 border-stone-200 px-4 py-3">
           <div className="flex items-center gap-3">
-            {/* Growing plant */}
+            {/* Growing bush */}
             <div className="flex-shrink-0">
-              <PlantSVG stage={stage} size="sm" colorVariant={Math.floor(durationMinutes / 10) % 5} />
+              <BushSVG stage={stage} size={44} colorVariant={Math.floor(Date.now() / 60000) % 5} />
             </div>
 
             {/* Info */}

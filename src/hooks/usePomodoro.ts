@@ -3,12 +3,18 @@ import { supabase } from '../lib/supabase'
 import type { Pomodoro } from '../types'
 
 const TIMER_KEY = 'pomodoro-timer'
+const COMPLETED_KEY = 'pomodoro-completed'
 
 interface TimerState {
   taskTitle: string
   grindId: string | null
   durationMinutes: number
   targetTime: number // Date.now() timestamp when timer ends
+  timerId: string // unique id to prevent duplicate completions
+}
+
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 function loadTimer(): TimerState | null {
@@ -16,11 +22,16 @@ function loadTimer(): TimerState | null {
     const stored = localStorage.getItem(TIMER_KEY)
     if (!stored) return null
     const state = JSON.parse(stored) as TimerState
-    // Still valid if target is in the future
+    // Check if this timer was already completed by another tab
+    const completed = localStorage.getItem(COMPLETED_KEY)
+    if (completed === state.timerId) {
+      localStorage.removeItem(TIMER_KEY)
+      return null
+    }
     if (state.targetTime > Date.now()) return state
-    // Timer expired while away — we'll handle completion on load
+    // Timer expired while away — signal expired
     localStorage.removeItem(TIMER_KEY)
-    return { ...state, targetTime: -1 } // signal expired
+    return { ...state, targetTime: -1 }
   } catch { return null }
 }
 
@@ -30,6 +41,10 @@ function saveTimer(state: TimerState | null) {
   } else {
     localStorage.removeItem(TIMER_KEY)
   }
+}
+
+function markCompleted(timerId: string) {
+  localStorage.setItem(COMPLETED_KEY, timerId)
 }
 
 export function usePomodoro() {
@@ -73,7 +88,7 @@ export function usePomodoro() {
     if (!restored) return
     if (restored.targetTime === -1) {
       // Timer expired while app was closed — record the pomodoro
-      completePomodoro(restored.taskTitle, restored.grindId, restored.durationMinutes)
+      completePomodoro(restored.taskTitle, restored.grindId, restored.durationMinutes, restored.timerId)
     } else {
       setTimer(restored)
       setRemainingSeconds(Math.ceil((restored.targetTime - Date.now()) / 1000))
@@ -91,11 +106,16 @@ export function usePomodoro() {
       if (remaining <= 0) {
         clearInterval(interval)
         setRemainingSeconds(0)
-        if (!completedRef.current) {
+        // Check if another tab already completed this timer
+        const completed = localStorage.getItem(COMPLETED_KEY)
+        if (!completedRef.current && completed !== timer.timerId) {
           completedRef.current = true
-          completePomodoro(timer.taskTitle, timer.grindId, timer.durationMinutes)
+          completePomodoro(timer.taskTitle, timer.grindId, timer.durationMinutes, timer.timerId)
           setTimer(null)
           saveTimer(null)
+        } else {
+          // Another tab completed it — just clear local state
+          setTimer(null)
         }
       } else {
         setRemainingSeconds(remaining)
@@ -106,27 +126,28 @@ export function usePomodoro() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timer])
 
-  async function completePomodoro(taskTitle: string, grindId: string | null, durationMinutes: number) {
+  async function completePomodoro(taskTitle: string, grindId: string | null, durationMinutes: number, timerId: string) {
+    // Mark as completed so other tabs don't duplicate
+    markCompleted(timerId)
+
     // Play a completion sound
     try {
       const c = new AudioContext()
       if (c.state === 'suspended') await c.resume()
       const t = c.currentTime
-      // Bell-like tone
       const osc = c.createOscillator()
       const g = c.createGain()
       osc.type = 'sine'
-      osc.frequency.setValueAtTime(784, t) // G5
+      osc.frequency.setValueAtTime(784, t)
       g.gain.setValueAtTime(0.15, t)
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.8)
       osc.connect(g).connect(c.destination)
       osc.start(t)
       osc.stop(t + 0.8)
-      // Second tone
       const osc2 = c.createOscillator()
       const g2 = c.createGain()
       osc2.type = 'sine'
-      osc2.frequency.setValueAtTime(1047, t + 0.15) // C6
+      osc2.frequency.setValueAtTime(1047, t + 0.15)
       g2.gain.setValueAtTime(0.12, t + 0.15)
       g2.gain.exponentialRampToValueAtTime(0.001, t + 0.9)
       osc2.connect(g2).connect(c.destination)
@@ -154,6 +175,7 @@ export function usePomodoro() {
       grindId,
       durationMinutes,
       targetTime: Date.now() + durationMinutes * 60 * 1000,
+      timerId: generateId(),
     }
     setTimer(state)
     setRemainingSeconds(durationMinutes * 60)
