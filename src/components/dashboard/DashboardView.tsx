@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import TaskCard from './TaskCard'
 import GrindCard from '../grind/GrindCard'
-import PomodoroButton from '../pomodoro/PomodoroButton'
 import { getGreeting, getTimeContext, getBatchCompleteMessage, getEmptyStateMessage } from '../../lib/celebrations'
 import { playBlessedDay, playRefresh } from '../../lib/sounds'
 import type { Task, Grind, PlantHealth } from '../../types'
@@ -210,22 +209,10 @@ export default function DashboardView({
       {/* Active grinds first, then task cards */}
       <div className="space-y-3">
         {activeGrinds.map((g, i) => (
-          <div key={g.id} className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <GrindCard grind={g} health={healthMap.get(g.id)} onComplete={onCompleteGrind} index={i} />
-            </div>
-            <PomodoroButton taskTitle={g.title} grindId={g.id} onStart={onStartPomodoro} disabled={pomodoroActive} />
-          </div>
+          <GrindCard key={g.id} grind={g} health={healthMap.get(g.id)} onComplete={onCompleteGrind} index={i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} />
         ))}
         {sortedBatch.map((task, i) => (
-          <div key={task.id} className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <TaskCard task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} index={activeGrinds.length + i} />
-            </div>
-            {!task.completed && (
-              <PomodoroButton taskTitle={task.title} onStart={onStartPomodoro} disabled={pomodoroActive} />
-            )}
-          </div>
+          <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} index={activeGrinds.length + i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} />
         ))}
       </div>
 

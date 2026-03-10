@@ -27,9 +27,10 @@ function saveTimestamps(prayerId: string, timestamps: (number | null)[]) {
 interface Props {
   prayer: Prayer
   onBack: () => void
+  onComplete?: () => void
 }
 
-export default function PrayerPlayer({ prayer, onBack }: Props) {
+export default function PrayerPlayer({ prayer, onBack, onComplete }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
@@ -79,6 +80,7 @@ export default function PrayerPlayer({ prayer, onBack }: Props) {
 
     audio.addEventListener('ended', () => {
       setPlaying(false)
+      onComplete?.()
     })
 
     return () => {

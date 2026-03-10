@@ -39,9 +39,10 @@ interface Props {
   onReactivate: (id: string) => void
   onUncomplete: (id: string) => void
   pomodoros: Pomodoro[]
+  prayerCount: number
 }
 
-export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onDelete, onUpdate, onRetire, onReactivate, onUncomplete, pomodoros }: Props) {
+export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onDelete, onUpdate, onRetire, onReactivate, onUncomplete, pomodoros, prayerCount }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedRetiredId, setSelectedRetiredId] = useState<string | null>(null)
@@ -132,7 +133,7 @@ export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onD
 
       {/* Terrarium Grid */}
       {(grinds.length > 0 || retiredGrinds.length > 0 || pomodoros.length > 0) && (
-        <TerrariumGrid grinds={grinds} retiredGrinds={retiredGrinds} pomodoros={pomodoros} healthMap={healthMap} />
+        <TerrariumGrid grinds={grinds} retiredGrinds={retiredGrinds} pomodoros={pomodoros} prayerCount={prayerCount} healthMap={healthMap} />
       )}
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Plant a Seed">

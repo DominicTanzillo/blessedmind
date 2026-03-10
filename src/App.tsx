@@ -55,6 +55,17 @@ export default function App() {
     cancelTimer,
   } = usePomodoro()
 
+  const [prayerCount, setPrayerCount] = useState(() => {
+    try { return Number(localStorage.getItem('prayer-count') ?? '0') } catch { return 0 }
+  })
+  const handlePrayerComplete = useCallback(() => {
+    setPrayerCount(prev => {
+      const next = prev + 1
+      localStorage.setItem('prayer-count', String(next))
+      return next
+    })
+  }, [])
+
   const [addModalOpen, setAddModalOpen] = useState(false)
 
   const handleAddClick = useCallback(() => setAddModalOpen(true), [])
@@ -140,6 +151,7 @@ export default function App() {
       onReactivate={reactivateGrind}
       onUncomplete={uncompleteGrind}
       pomodoros={pomodoros}
+      prayerCount={prayerCount}
     />
   )
 
@@ -151,7 +163,7 @@ export default function App() {
           <Route path="inbox" element={inboxEl} />
           <Route path="waiting" element={waitingEl} />
           <Route path="grind" element={grindEl} />
-          <Route path="pray" element={<PrayerView />} />
+          <Route path="pray" element={<PrayerView onPrayerComplete={handlePrayerComplete} />} />
         </Route>
       </Routes>
 

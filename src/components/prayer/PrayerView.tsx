@@ -3,7 +3,11 @@ import PrayerPlayer from './PrayerPlayer'
 import { PRAYERS } from '../../lib/prayers'
 import type { Prayer } from '../../lib/prayers'
 
-export default function PrayerView() {
+interface Props {
+  onPrayerComplete?: () => void
+}
+
+export default function PrayerView({ onPrayerComplete }: Props) {
   const [activePrayer, setActivePrayer] = useState<Prayer | null>(null)
 
   // Starred prayers first
@@ -13,7 +17,7 @@ export default function PrayerView() {
   })
 
   if (activePrayer) {
-    return <PrayerPlayer prayer={activePrayer} onBack={() => setActivePrayer(null)} />
+    return <PrayerPlayer prayer={activePrayer} onBack={() => setActivePrayer(null)} onComplete={onPrayerComplete} />
   }
 
   return (

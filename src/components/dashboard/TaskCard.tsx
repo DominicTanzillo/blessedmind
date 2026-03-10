@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import Badge from '../ui/Badge'
+import PomodoroButton from '../pomodoro/PomodoroButton'
 import { PRIORITIES, CATEGORY_EMOJI } from '../../lib/constants'
 import { getCompletionMessage, shouldShowInsight } from '../../lib/celebrations'
 import { playComplete, playStepComplete } from '../../lib/sounds'
@@ -13,6 +14,8 @@ interface Props {
   onCompleteStep: (id: string) => void
   onConvertToWaiting: (id: string) => void
   index: number
+  onStartPomodoro?: (minutes: number, title: string, grindId: string | null) => void
+  pomodoroActive?: boolean
 }
 
 function formatRelativeDate(dateStr: string | null): string {
@@ -28,7 +31,7 @@ function formatRelativeDate(dateStr: string | null): string {
   return `Due ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
 }
 
-export default function TaskCard({ task, onComplete, onUncomplete, onCompleteStep, onConvertToWaiting, index }: Props) {
+export default function TaskCard({ task, onComplete, onUncomplete, onCompleteStep, onConvertToWaiting, index, onStartPomodoro, pomodoroActive }: Props) {
   const [animatingComplete, setAnimatingComplete] = useState(false)
   const [completionMsg, setCompletionMsg] = useState('')
   const [showRipple, setShowRipple] = useState(false)
@@ -221,6 +224,11 @@ export default function TaskCard({ task, onComplete, onUncomplete, onCompleteSte
               <span className={`text-xs ${isOverdue ? 'text-terracotta font-medium' : 'text-stone-400'}`}>
                 {dateText}
               </span>
+              {onStartPomodoro && (
+                <div className="ml-auto">
+                  <PomodoroButton taskTitle={task.title} onStart={onStartPomodoro} disabled={pomodoroActive} />
+                </div>
+              )}
             </div>
           )}
         </div>

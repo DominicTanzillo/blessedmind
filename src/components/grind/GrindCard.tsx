@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import PlantSVG from './PlantSVG'
+import PomodoroButton from '../pomodoro/PomodoroButton'
 import { plantStage, STAGE_NAMES } from '../../hooks/useGrinds'
 import { playGrindComplete } from '../../lib/sounds'
 import { getGrindCompletionMessage, shouldShowInsight } from '../../lib/celebrations'
@@ -10,9 +11,11 @@ interface Props {
   health?: PlantHealth
   onComplete: (id: string) => void
   index: number
+  onStartPomodoro?: (minutes: number, title: string, grindId: string | null) => void
+  pomodoroActive?: boolean
 }
 
-export default function GrindCard({ grind, health = 'healthy', onComplete, index }: Props) {
+export default function GrindCard({ grind, health = 'healthy', onComplete, index, onStartPomodoro, pomodoroActive }: Props) {
   const [animating, setAnimating] = useState(false)
   const [msg, setMsg] = useState('')
   const stage = plantStage(grind.current_streak)
@@ -56,6 +59,11 @@ export default function GrindCard({ grind, health = 'healthy', onComplete, index
             <p className="text-sm text-sage-600 mt-1.5 animate-fade-up italic">{msg}</p>
           )}
         </div>
+
+        {/* Pomodoro timer */}
+        {onStartPomodoro && (
+          <PomodoroButton taskTitle={grind.title} grindId={grind.id} onStart={onStartPomodoro} disabled={pomodoroActive} />
+        )}
 
         {/* Complete button */}
         <button
