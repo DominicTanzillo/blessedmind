@@ -82,7 +82,7 @@ function SmallBush({ p }: { p: BushPalette }) {
   )
 }
 
-/** Medium bush with flowers */
+/** Medium bush with flowers and butterfly */
 function MediumBush({ p }: { p: BushPalette }) {
   return (
     <g>
@@ -100,11 +100,17 @@ function MediumBush({ p }: { p: BushPalette }) {
       {/* Berries */}
       <circle cx="9" cy="26" r="1" fill={p.accent} opacity="0.9" />
       <circle cx="27" cy="26" r="1" fill={p.accent} opacity="0.9" />
+      {/* Butterfly */}
+      <g transform="translate(27, 17)" className="animate-breathe" style={{ transformOrigin: '0 0' }}>
+        <ellipse cx="-2" cy="0" rx="2.2" ry="1.5" fill={p.flower} opacity="0.8" transform="rotate(-20)" />
+        <ellipse cx="2" cy="0" rx="2.2" ry="1.5" fill={p.flower} opacity="0.8" transform="rotate(20)" />
+        <ellipse cx="0" cy="0" rx="0.5" ry="1.2" fill={p.dark} />
+      </g>
     </g>
   )
 }
 
-/** Large lush bush with many flowers and berries */
+/** Large lush bush with many flowers, berries, and a small bird */
 function LargeBush({ p }: { p: BushPalette }) {
   return (
     <g>
@@ -128,6 +134,20 @@ function LargeBush({ p }: { p: BushPalette }) {
       <circle cx="28" cy="25.5" r="1.1" fill={p.accent} />
       <circle cx="16" cy="18.5" r="0.9" fill={p.accent} opacity="0.8" />
       <circle cx="20" cy="18.5" r="0.9" fill={p.accent} opacity="0.8" />
+      {/* Small bird perched on top */}
+      <g transform="translate(24, 15)">
+        <ellipse cx="0" cy="0" rx="2.2" ry="1.5" fill="#8B7355" /> {/* body */}
+        <circle cx="-1.8" cy="-0.8" r="1.1" fill="#9B8365" /> {/* head */}
+        <path d="M-2.9,-0.8 L-3.6,-0.5 L-2.9,-0.5Z" fill="#E8A040" /> {/* beak */}
+        <circle cx="-2.1" cy="-1" r="0.35" fill="#2a2a2a" /> {/* eye */}
+        <path d="M1.5,0 Q3,-1.5 3.5,-0.5 Q3,0.5 1.5,0Z" fill="#7A6345" /> {/* tail */}
+      </g>
+      {/* Butterfly */}
+      <g transform="translate(8, 18)" className="animate-breathe" style={{ transformOrigin: '0 0' }}>
+        <ellipse cx="-2" cy="0" rx="2" ry="1.3" fill={p.flower} opacity="0.7" transform="rotate(-25)" />
+        <ellipse cx="2" cy="0" rx="2" ry="1.3" fill={p.flower} opacity="0.7" transform="rotate(25)" />
+        <ellipse cx="0" cy="0" rx="0.4" ry="1" fill={p.dark} />
+      </g>
     </g>
   )
 }
