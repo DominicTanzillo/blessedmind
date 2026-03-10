@@ -160,20 +160,20 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
           }}
           onClick={dismissTooltip}
         >
-          {/* Green lawn ground */}
+          {/* Sage lawn ground — matches app palette */}
           <div
             className="absolute inset-0 rounded-lg"
             style={{
-              background: 'linear-gradient(135deg, #5a9e4a 0%, #4a8e3a 30%, #3d7e2d 60%, #357025 100%)',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+              background: 'linear-gradient(135deg, #b3bda3 0%, #95a383 30%, #7ba887 60%, #788764 100%)',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
             }}
           />
 
-          {/* Subtle grass texture overlay */}
+          {/* Subtle lighter patches */}
           <div
             className="absolute inset-0 rounded-lg"
             style={{
-              background: 'radial-gradient(ellipse at 30% 40%, rgba(120,180,80,0.3) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(80,150,60,0.2) 0%, transparent 40%)',
+              background: 'radial-gradient(ellipse at 30% 40%, rgba(200,220,190,0.2) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(180,200,170,0.15) 0%, transparent 40%)',
             }}
           />
 
