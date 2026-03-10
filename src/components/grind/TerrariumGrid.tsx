@@ -16,7 +16,7 @@ function pomodoroStage(durationMinutes: number): 0 | 1 | 2 | 3 | 4 {
 }
 
 function pomodoroColorVariant(index: number): number {
-  return index % 5
+  return index % 10
 }
 
 /** Deterministic pseudo-random from cell coords */
