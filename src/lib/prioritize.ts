@@ -1,40 +1,62 @@
 import type { Task } from '../types'
 
+/**
+ * Score a task for prioritization. Lower score = higher priority.
+ *
+ * Strategy:
+ * 1. Overdue and due-today tasks are URGENT (strongly negative scores)
+ * 2. Due within 3 days gets moderate priority
+ * 3. Due within a week gets mild priority
+ * 4. Once immediate tasks are handled, older tasks in the queue
+ *    bubble up to prevent neglect
+ * 5. No-due-date tasks rely on priority + age
+ */
 export function scoreTask(task: Task): number {
   let score = 0
   const now = new Date()
   now.setHours(0, 0, 0, 0)
 
-  // Due date factor (60% weight) - lower = more pressing
+  // ── Due date factor (primary driver) ──────────────────
   if (task.due_date) {
     const due = new Date(task.due_date + 'T00:00:00')
     const daysUntil = Math.floor((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
     if (daysUntil < 0) {
-      score += daysUntil * 15 // Strongly negative for overdue
+      // Overdue — escalates sharply the more overdue it is
+      score += -50 + daysUntil * 20
     } else if (daysUntil === 0) {
-      score += 0 // Due today
+      // Due today — very high priority
+      score += -40
+    } else if (daysUntil === 1) {
+      // Due tomorrow
+      score += -20
     } else if (daysUntil <= 3) {
-      score += daysUntil * 5 // Due soon
+      // Due in 2-3 days
+      score += daysUntil * 5
     } else if (daysUntil <= 7) {
-      score += 30
+      // Due this week
+      score += 30 + (daysUntil - 3) * 3
     } else {
-      score += 60
+      // Due later — not urgent by date
+      score += 55 + Math.min(daysUntil - 7, 30)
     }
   } else {
-    score += 100 // No date = least urgent by date
+    // No due date — moderate baseline, let priority + age decide
+    score += 40
   }
 
-  // Priority factor (30% weight)
-  if (task.priority === 1) score += 0   // Urgent
-  if (task.priority === 2) score += 20  // Normal
-  if (task.priority === 3) score += 40  // Low
+  // ── Priority factor ───────────────────────────────────
+  if (task.priority === 1) score += -10  // Urgent gets a boost
+  if (task.priority === 2) score += 10   // Normal
+  if (task.priority === 3) score += 25   // Low
 
-  // Age factor (10% weight) - older tasks bubble up to prevent neglect
+  // ── Age factor — prevents tasks from languishing ──────
   const created = new Date(task.created_at)
   const ageDays = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24))
-  if (ageDays > 7) {
-    score -= Math.min(ageDays - 7, 15) // Up to -15 bonus for old tasks
+  if (ageDays > 3) {
+    // Gradual escalation: tasks older than 3 days start bubbling up
+    // Max bonus of -25 at 30+ days old
+    score -= Math.min(ageDays - 3, 25)
   }
 
   return score

@@ -46,11 +46,12 @@ export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  // Get the tasks in the current batch
+  // Get the tasks in the current batch — exclude waiting tasks
   const batchTasks = batch
     ? tasks.filter(t => batch.task_ids.includes(t.id) && !t.waiting)
     : []
 
+  // Count how many batch tasks are completed
   const completedInBatch = batchTasks.filter(t => t.completed).length
   const allCompleted = batchTasks.length > 0 && completedInBatch === batchTasks.length
 
@@ -98,6 +99,57 @@ export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
       generateNewBatch()
     }
   }, [loading, batch, tasks, generateNewBatch])
+
+  // Auto-refresh batch when ALL batch tasks are completed —
+  // replace completed tasks with the next best candidates
+  useEffect(() => {
+    if (!loading && batch && allCompleted) {
+      const incompleteCount = tasks.filter(t => !t.completed && !t.waiting).length
+      if (incompleteCount > 0) {
+        generateNewBatch()
+      }
+    }
+  }, [loading, batch, allCompleted, tasks, generateNewBatch])
+
+  // On load, if the batch contains tasks that are now completed,
+  // swap them out for fresh incomplete tasks
+  const hasRefreshedRef = useRef(false)
+  useEffect(() => {
+    if (loading || !batch || hasRefreshedRef.current) return
+    if (tasks.length === 0) return
+    hasRefreshedRef.current = true
+
+    const incompleteBatchTasks = batchTasks.filter(t => !t.completed)
+    const effectiveSize = Math.max(0, BATCH_SIZE - enabledGrindCount)
+
+    // If some batch tasks are completed, fill their slots with new tasks
+    if (incompleteBatchTasks.length < effectiveSize && completedInBatch > 0) {
+      const ranked = rankTasks(tasks)
+      const currentIds = new Set(incompleteBatchTasks.map(t => t.id))
+      const newTasks = ranked.filter(t => !currentIds.has(t.id))
+      const slotsToFill = effectiveSize - incompleteBatchTasks.length
+      const fillIds = newTasks.slice(0, slotsToFill).map(t => t.id)
+      const newBatchIds = [...incompleteBatchTasks.map(t => t.id), ...fillIds]
+
+      if (fillIds.length > 0) {
+        // Update the batch with refreshed task list
+        supabase
+          .from('active_batch')
+          .delete()
+          .eq('id', batch.id)
+          .then(() => {
+            supabase
+              .from('active_batch')
+              .insert({ task_ids: newBatchIds, completed_task_ids: [] })
+              .select()
+              .single()
+              .then(({ data }) => {
+                if (data) setBatch(data as ActiveBatch)
+              })
+          })
+      }
+    }
+  }, [loading, batch, tasks, batchTasks, completedInBatch, enabledGrindCount])
 
   return {
     batchTasks,
