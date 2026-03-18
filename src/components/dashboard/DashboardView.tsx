@@ -42,12 +42,14 @@ function expandToFocusItems(batchTasks: Task[]): FocusItem[] {
 
       for (let i = 0; i < task.steps.length; i++) {
         const step = task.steps[i]
+        if (step.completed) continue // completed steps disappear like completed tasks
+
         const stepDate = step.due_date ?? defaults[i] ?? null
         const isDue = stepDate ? stepDate <= today : false
         const isCurrentStep = i === task.steps.findIndex(s => !s.completed)
 
-        // Show: completed steps, due/overdue steps, or the current step
-        if (step.completed || isDue || isCurrentStep) {
+        // Show: due/overdue steps, or the current (first incomplete) step
+        if (isDue || isCurrentStep) {
           items.push({ task, stepIdx: i })
         }
       }
