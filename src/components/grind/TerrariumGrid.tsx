@@ -7,18 +7,31 @@ import AuditBouquetSVG from './AuditBouquetSVG'
 import { plantStage } from '../../hooks/useHabitTemplates'
 import type { Grind, Pomodoro, PlantHealth, Task, TimeAudit } from '../../types'
 
+// ── Constants ────────────────────────────────────────────────
 const CELL = 44
+const MIN_SIDE = 6
+const MAX_SIDE = 14
+const ZEN_FILL = 0.40 // 40% filled, 60% breathing room
+const LS_KEY = 'terrarium-grid-positions'
 
-function pomodoroStage(d: number): 0 | 1 | 2 | 3 | 4 {
-  if (d >= 60) return 4; if (d >= 30) return 3; if (d >= 15) return 2; return 1
-}
-function colorFromId(id: string): number {
-  let h = 0; for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0; return (h >>> 0) % 10
+// ── Helpers ──────────────────────────────────────────────────
+function hashId(id: string): number {
+  let h = 0; for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0; return h >>> 0
 }
 function cellHash(r: number, c: number): number {
   let h = r * 7919 + c * 104729; h = ((h >> 16) ^ h) * 0x45d9f3b; h = ((h >> 16) ^ h) * 0x45d9f3b; return ((h >> 16) ^ h) & 0x7fffffff
 }
+function pomodoroStage(d: number): 0 | 1 | 2 | 3 | 4 {
+  if (d >= 60) return 4; if (d >= 30) return 3; if (d >= 15) return 2; return 1
+}
 
+// Organic offset from cell center — wabi-sabi imperfection
+function organicOffset(id: string): { dx: number; dy: number } {
+  const h = hashId(id)
+  return { dx: ((h % 7) - 3) * 1.5, dy: (((h >> 3) % 7) - 3) * 1.5 }
+}
+
+// ── Types ────────────────────────────────────────────────────
 type TooltipInfo =
   | { type: 'habit'; title: string; createdAt: string; streak: number; bestStreak: number; health: PlantHealth }
   | { type: 'pomodoro'; taskTitle: string; durationMinutes: number; completedAt: string }
@@ -26,14 +39,20 @@ type TooltipInfo =
   | { type: 'audit'; completedAt: string; entryCount: number }
   | { type: 'prayer' }
 
-type CellContent =
-  | { type: 'habit'; grind: Grind; corner: 'tl' | 'tr' | 'bl' | 'br'; health: PlantHealth }
-  | { type: 'pomodoro'; pomodoro: Pomodoro; colorIndex: number }
-  | { type: 'trophy'; task: Task }
-  | { type: 'audit'; audit: TimeAudit }
-  | { type: 'prayer'; title: string }
-  | { type: 'path' }
-  | { type: 'empty' }
+type CellItem =
+  | { kind: 'habit'; grind: Grind; corner: 'tl' | 'tr' | 'bl' | 'br'; health: PlantHealth; key: string }
+  | { kind: 'pomodoro'; pomodoro: Pomodoro; colorIndex: number; key: string }
+  | { kind: 'trophy'; task: Task; key: string }
+  | { kind: 'audit'; audit: TimeAudit; key: string }
+  | { kind: 'prayer'; index: number; key: string }
+
+type GroundFeature = 'moss' | 'clover' | 'pebble' | 'pond' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'path' | null
+
+interface Cell {
+  item: CellItem | null
+  ground: GroundFeature
+  zone: 'habit' | 'prayer' | 'trophy' | 'pomodoro' | 'path' | 'open'
+}
 
 interface Props {
   grinds: Grind[]
@@ -45,181 +64,390 @@ interface Props {
   completedAudits?: TimeAudit[]
 }
 
-// ── Zone layout ──────────────────────────────────────────────
-// Back (top): Habits — large 2×2 plants
-// Left: Prayer garden — white roses
-// Center: Stone path running top to bottom
-// Right: Trophy display — trophies + audits
-// Front (bottom): Pomodoro grove — bushes
+// ── Persistence ──────────────────────────────────────────────
+function loadPositions(): Record<string, { r: number; c: number }> {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}') } catch { return {} }
+}
+function savePositions(pos: Record<string, { r: number; c: number }>) {
+  localStorage.setItem(LS_KEY, JSON.stringify(pos))
+}
 
-function buildZonedGrid(
-  habits: Grind[],
+// ── Garden Builder ───────────────────────────────────────────
+function buildGarden(
+  allHabits: Grind[],
   pomodoros: Pomodoro[],
   trophies: Task[],
   audits: TimeAudit[],
   prayerCount: number,
   healthMap: Map<string, PlantHealth>,
 ) {
-  const trophyItems = trophies.length + audits.length
-  const prayerItems = prayerCount
+  // Grid sizing — zen ratio
+  const totalUnits = allHabits.length * 4 + prayerCount + trophies.length + audits.length + pomodoros.length
+  const desiredCells = Math.max(MIN_SIDE * MIN_SIDE, Math.ceil(totalUnits / ZEN_FILL))
+  const side = Math.min(MAX_SIDE, Math.max(MIN_SIDE, Math.ceil(Math.sqrt(desiredCells))))
 
-  // Zone column allocation: [prayers] [path] [trophies]
-  const prayerCols = Math.max(2, Math.ceil(Math.sqrt(prayerItems)))
-  const trophyCols = Math.max(2, Math.ceil(Math.sqrt(trophyItems)))
-  const pathCol = prayerCols // path is one column wide
-  const gridW = prayerCols + 1 + trophyCols
-
-  // Zone row allocation
-  const habitRows = habits.length > 0 ? 3 : 0 // 2 rows for 2×2 + 1 gap
-  const prayerRows = prayerItems > 0 ? Math.ceil(prayerItems / prayerCols) : 0
-  const trophyRows = trophyItems > 0 ? Math.ceil(trophyItems / trophyCols) : 0
-  const middleRows = Math.max(prayerRows, trophyRows, 1)
-  const pomodoroRowWidth = gridW
-  const pomoRows = pomodoros.length > 0 ? Math.max(1, Math.ceil(pomodoros.length / pomodoroRowWidth)) : 0
-  const gridH = Math.max(habitRows + middleRows + (pomoRows > 0 ? 1 + pomoRows : 0), 6)
+  // Zone boundaries (in grid coords)
+  // Front (bottom 3 rows): active habits
+  // Left columns: prayers
+  // Right columns: trophies + audits
+  // Remaining: pomodoros scattered
+  const pathCol = Math.floor(side / 2)
+  const frontStart = side - 3
 
   // Build empty grid
-  const g: CellContent[][] = Array.from({ length: gridH }, () =>
-    Array.from({ length: gridW }, () => ({ type: 'empty' as const }))
+  const grid: Cell[][] = Array.from({ length: side }, (_, r) =>
+    Array.from({ length: side }, (_, c) => {
+      let zone: Cell['zone'] = 'open'
+      if (c === pathCol) zone = 'path'
+      else if (r >= frontStart) zone = 'habit'
+      else if (c < pathCol) zone = 'prayer'
+      else zone = 'trophy'
+      return { item: null, ground: null, zone }
+    })
   )
 
-  // Place path (vertical center column, full height)
-  for (let r = 0; r < gridH; r++) {
-    if (pathCol < gridW) g[r][pathCol] = { type: 'path' }
+  // Load saved positions
+  const saved = loadPositions()
+  const occupied = new Set<string>()
+
+  // Helper: try placing at (r,c)
+  function place(r: number, c: number, item: CellItem): boolean {
+    if (r < 0 || r >= side || c < 0 || c >= side) return false
+    if (occupied.has(`${r},${c}`)) return false
+    if (grid[r][c].zone === 'path') return false
+    grid[r][c].item = item
+    occupied.add(`${r},${c}`)
+    return true
   }
 
-  // Place habits (back/top, centered across grid, 2×2 each)
-  const allHabits = [...habits].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).slice(0, 4)
-  allHabits.forEach((grind, i) => {
-    // Position 2×2 blocks across the top, centered
-    const startCol = i * 2
-    if (startCol + 1 >= gridW) return
-    const health = healthMap.get(grind.id) ?? 'healthy'
-    const r = 0
-    const c = Math.min(startCol, gridW - 2)
-    // Skip if overlaps path
-    if (c === pathCol || c + 1 === pathCol) return
-    g[r][c] = { type: 'habit', grind, corner: 'tl', health }
-    g[r][c + 1] = { type: 'habit', grind, corner: 'tr', health }
-    g[r + 1][c] = { type: 'habit', grind, corner: 'bl', health }
-    g[r + 1][c + 1] = { type: 'habit', grind, corner: 'br', health }
-  })
+  // Helper: place 2x2 habit
+  function placeHabit(r: number, c: number, grind: Grind, health: PlantHealth): boolean {
+    if (r + 1 >= side || c + 1 >= side) return false
+    const cells = [[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]]
+    if (cells.some(([cr, cc]) => occupied.has(`${cr},${cc}`) || grid[cr][cc].zone === 'path')) return false
+    const corners: Array<'tl' | 'tr' | 'bl' | 'br'> = ['tl', 'tr', 'bl', 'br']
+    const key = `habit:${grind.id}`
+    cells.forEach(([cr, cc], i) => {
+      grid[cr][cc].item = { kind: 'habit', grind, corner: corners[i], health, key }
+      occupied.add(`${cr},${cc}`)
+    })
+    return true
+  }
 
-  // Place prayers (left zone, below habits)
-  const prayerStartRow = habitRows
-  let prayerPlaced = 0
-  for (let r = prayerStartRow; r < gridH && prayerPlaced < prayerCount; r++) {
-    for (let c = 0; c < pathCol && prayerPlaced < prayerCount; c++) {
-      if (g[r][c].type === 'empty') {
-        g[r][c] = { type: 'prayer', title: 'Prayer' }
-        prayerPlaced++
+  // ── Place items with saved positions first ──
+  // Active habits (front zone)
+  const activeHabits = allHabits.filter(g => !g.retired)
+  const retiredHabits = allHabits.filter(g => g.retired)
+
+  // Place active habits at front
+  let habitCol = 0
+  for (const g of activeHabits) {
+    const key = `habit:${g.id}`
+    const health = healthMap.get(g.id) ?? 'healthy'
+    const sv = saved[key]
+    if (sv && placeHabit(sv.r, sv.c, g, health)) continue
+    // Auto-place in front zone
+    let placed = false
+    for (let c = habitCol; c < side - 1 && !placed; c++) {
+      if (c === pathCol || c + 1 === pathCol) continue
+      if (placeHabit(frontStart, c, g, health)) { habitCol = c + 2; placed = true }
+    }
+    if (!placed) {
+      for (let r = frontStart; r >= 0 && !placed; r--) {
+        for (let c = 0; c < side - 1 && !placed; c++) {
+          if (c === pathCol || c + 1 === pathCol) continue
+          placed = placeHabit(r, c, g, health)
+        }
       }
     }
   }
 
-  // Place trophies + audits (right zone, below habits)
-  const trophyStartRow = habitRows
-  const trophyStartCol = pathCol + 1
+  // Place retired habits (back/top area)
+  for (const g of retiredHabits) {
+    const key = `habit:${g.id}`
+    const health = healthMap.get(g.id) ?? 'healthy'
+    const sv = saved[key]
+    if (sv && placeHabit(sv.r, sv.c, g, health)) continue
+    let placed = false
+    for (let r = 0; r < frontStart && !placed; r++) {
+      for (let c = 0; c < side - 1 && !placed; c++) {
+        if (c === pathCol || c + 1 === pathCol) continue
+        placed = placeHabit(r, c, g, health)
+      }
+    }
+  }
+
+  // Place prayers (left zone, spiral from center)
+  const prayerCenterR = Math.floor((frontStart) / 2)
+  const prayerCenterC = Math.floor(pathCol / 2)
+  const prayerCells = spiralFrom(prayerCenterR, prayerCenterC, side)
+    .filter(([r, c]) => c < pathCol && r < frontStart)
+
+  for (let i = 0; i < prayerCount; i++) {
+    const key = `prayer:${i}`
+    const sv = saved[key]
+    if (sv && place(sv.r, sv.c, { kind: 'prayer', index: i, key })) continue
+    for (const [r, c] of prayerCells) {
+      if (place(r, c, { kind: 'prayer', index: i, key })) break
+    }
+  }
+
+  // Place trophies + audits (right zone)
   const sortedTrophies = [...trophies].sort((a, b) => new Date(a.completed_at!).getTime() - new Date(b.completed_at!).getTime())
   const sortedAudits = [...audits].sort((a, b) => new Date(a.completed_at!).getTime() - new Date(b.completed_at!).getTime())
+  const trophyCenterR = Math.floor((frontStart) / 2)
+  const trophyCenterC = Math.floor((pathCol + 1 + side) / 2)
+  const trophyCells = spiralFrom(trophyCenterR, trophyCenterC, side)
+    .filter(([r, c]) => c > pathCol && r < frontStart)
 
-  let tIdx = 0, aIdx = 0
-  for (let r = trophyStartRow; r < gridH; r++) {
-    for (let c = trophyStartCol; c < gridW; c++) {
-      if (g[r][c].type !== 'empty') continue
-      if (tIdx < sortedTrophies.length) {
-        g[r][c] = { type: 'trophy', task: sortedTrophies[tIdx++] }
-      } else if (aIdx < sortedAudits.length) {
-        g[r][c] = { type: 'audit', audit: sortedAudits[aIdx++] }
-      }
+  for (const t of sortedTrophies) {
+    const key = `trophy:${t.id}`
+    const sv = saved[key]
+    if (sv && place(sv.r, sv.c, { kind: 'trophy', task: t, key })) continue
+    for (const [r, c] of trophyCells) {
+      if (place(r, c, { kind: 'trophy', task: t, key })) break
+    }
+  }
+  for (const a of sortedAudits) {
+    const key = `audit:${a.id}`
+    const sv = saved[key]
+    if (sv && place(sv.r, sv.c, { kind: 'audit', audit: a, key })) continue
+    for (const [r, c] of trophyCells) {
+      if (place(r, c, { kind: 'audit', audit: a, key })) break
     }
   }
 
-  // Place pomodoros (front/bottom rows, full width)
-  const pomoStartRow = habitRows + middleRows
+  // Place pomodoros (fill remaining open cells, spiral from back)
   const sortedPomos = [...pomodoros].sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime())
-  let pIdx = 0
-  for (let r = pomoStartRow; r < gridH && pIdx < sortedPomos.length; r++) {
-    for (let c = 0; c < gridW && pIdx < sortedPomos.length; c++) {
-      if (g[r][c].type === 'empty') {
-        g[r][c] = { type: 'pomodoro', pomodoro: sortedPomos[pIdx], colorIndex: colorFromId(sortedPomos[pIdx].id) }
-        pIdx++
+  const pomoCells = spiralFrom(Math.floor(side / 4), Math.floor(side / 2), side)
+    .filter(([r, c]) => grid[r]?.[c]?.zone !== 'path')
+
+  for (const p of sortedPomos) {
+    const key = `pomodoro:${p.id}`
+    const sv = saved[key]
+    if (sv && place(sv.r, sv.c, { kind: 'pomodoro', pomodoro: p, colorIndex: hashId(p.id) % 10, key })) continue
+    for (const [r, c] of pomoCells) {
+      if (place(r, c, { kind: 'pomodoro', pomodoro: p, colorIndex: hashId(p.id) % 10, key })) break
+    }
+  }
+
+  // ── Ground features — zone-appropriate ──
+  for (let r = 0; r < side; r++) {
+    for (let c = 0; c < side; c++) {
+      if (grid[r][c].item) continue
+      const h = cellHash(r, c)
+      const zone = grid[r][c].zone
+
+      if (zone === 'path') {
+        grid[r][c].ground = h % 3 === 0 ? 'path' : null
+      } else if (zone === 'prayer') {
+        if (h % 6 === 0) grid[r][c].ground = 'moss'
+        else if (h % 11 === 0) grid[r][c].ground = 'wildflower'
+      } else if (zone === 'trophy') {
+        if (h % 7 === 0) grid[r][c].ground = 'gravel'
+        else if (h % 13 === 0) grid[r][c].ground = 'stone'
+      } else {
+        if (h % 9 === 0) grid[r][c].ground = 'clover'
+        else if (h % 15 === 0) grid[r][c].ground = 'pebble'
+        else if (h % 31 === 0) grid[r][c].ground = 'pond'
+        else if (h % 23 === 0) grid[r][c].ground = 'mushroom'
       }
     }
   }
 
-  return { grid: g, gridW, gridH }
+  return { grid, side }
+}
+
+// Spiral outward from center point
+function spiralFrom(cr: number, cc: number, size: number): [number, number][] {
+  const cells: [number, number][] = []
+  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) cells.push([r, c])
+  cells.sort((a, b) => {
+    const dA = Math.abs(a[0] - cr) + Math.abs(a[1] - cc)
+    const dB = Math.abs(b[0] - cr) + Math.abs(b[1] - cc)
+    return dA - dB
+  })
+  return cells
+}
+
+// ── Ground Feature SVGs ─────────────────────────────────────
+function GroundSVG({ feature }: { feature: GroundFeature }) {
+  if (!feature) return null
+  const s = { position: 'absolute' as const, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
+
+  switch (feature) {
+    case 'path': return (
+      <svg style={s} width="32" height="28" viewBox="0 0 32 28" fill="none">
+        <ellipse cx="16" cy="14" rx="12" ry="9" fill="rgba(160,150,130,0.25)" />
+        <ellipse cx="14" cy="12" rx="7" ry="5" fill="rgba(175,165,145,0.18)" />
+      </svg>
+    )
+    case 'moss': return (
+      <svg style={s} width="16" height="12" viewBox="0 0 16 12" fill="none">
+        <ellipse cx="5" cy="7" rx="4" ry="3" fill="rgba(100,140,70,0.2)" />
+        <ellipse cx="11" cy="6" rx="3" ry="2.5" fill="rgba(110,150,80,0.15)" />
+        <ellipse cx="8" cy="9" rx="3" ry="2" fill="rgba(90,130,60,0.12)" />
+      </svg>
+    )
+    case 'clover': return (
+      <svg style={s} width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <circle cx="4" cy="4" r="2" fill="rgba(80,140,50,0.2)" />
+        <circle cx="8" cy="4" r="2" fill="rgba(80,140,50,0.18)" />
+        <circle cx="6" cy="7" r="2" fill="rgba(80,140,50,0.22)" />
+        <line x1="6" y1="7" x2="6" y2="11" stroke="rgba(80,140,50,0.15)" strokeWidth="0.5" />
+      </svg>
+    )
+    case 'pebble': return (
+      <svg style={s} width="14" height="10" viewBox="0 0 14 10" fill="none">
+        <ellipse cx="5" cy="5" rx="3" ry="2" fill="rgba(130,125,110,0.18)" />
+        <ellipse cx="10" cy="6" rx="2.5" ry="1.5" fill="rgba(120,115,100,0.15)" />
+      </svg>
+    )
+    case 'pond': return (
+      <svg style={s} width="24" height="18" viewBox="0 0 24 18" fill="none">
+        <ellipse cx="12" cy="10" rx="10" ry="6" fill="rgba(120,170,190,0.2)" />
+        <ellipse cx="12" cy="9" rx="7" ry="4" fill="rgba(140,190,210,0.15)" />
+        <ellipse cx="10" cy="8" rx="3" ry="1.5" fill="rgba(200,220,240,0.12)" />
+      </svg>
+    )
+    case 'mushroom': return (
+      <svg style={s} width="10" height="12" viewBox="0 0 10 12" fill="none">
+        <rect x="4" y="7" width="2" height="4" rx="0.5" fill="rgba(200,190,170,0.25)" />
+        <ellipse cx="5" cy="7" rx="3.5" ry="2.5" fill="rgba(170,120,90,0.2)" />
+        <ellipse cx="4" cy="6.5" rx="1" ry="0.6" fill="rgba(240,235,225,0.15)" />
+      </svg>
+    )
+    case 'wildflower': return (
+      <svg style={s} width="10" height="14" viewBox="0 0 10 14" fill="none">
+        <line x1="5" y1="8" x2="5" y2="13" stroke="rgba(100,140,70,0.2)" strokeWidth="0.5" />
+        <circle cx="5" cy="6" r="2.5" fill="rgba(250,245,240,0.25)" />
+        <circle cx="5" cy="6" r="1" fill="rgba(240,220,180,0.3)" />
+      </svg>
+    )
+    case 'gravel': return (
+      <svg style={s} width="16" height="10" viewBox="0 0 16 10" fill="none">
+        <ellipse cx="4" cy="5" rx="2" ry="1.2" fill="rgba(150,145,130,0.15)" />
+        <ellipse cx="9" cy="4" rx="1.5" ry="1" fill="rgba(140,135,120,0.12)" />
+        <ellipse cx="12" cy="6" rx="1.8" ry="1" fill="rgba(145,140,125,0.13)" />
+      </svg>
+    )
+    case 'stone': return (
+      <svg style={s} width="14" height="10" viewBox="0 0 14 10" fill="none">
+        <ellipse cx="7" cy="5" rx="5" ry="3.5" fill="rgba(140,135,120,0.18)" />
+        <ellipse cx="6" cy="4" rx="3" ry="2" fill="rgba(160,155,140,0.12)" />
+      </svg>
+    )
+    default: return null
+  }
 }
 
 // ── Component ────────────────────────────────────────────────
-
 export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayerCount, healthMap, completedHydras = [], completedAudits = [] }: Props) {
   const [tooltip, setTooltip] = useState<{ info: TooltipInfo; x: number; y: number } | null>(null)
+  const isMobile = typeof window !== 'undefined' && 'ontouchstart' in window
 
   const allHabits = useMemo(() =>
-    [...grinds, ...retiredGrinds].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).slice(0, 4),
+    [...grinds, ...retiredGrinds].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
     [grinds, retiredGrinds]
   )
 
-  const initialLayout = useMemo(() =>
-    buildZonedGrid(allHabits, pomodoros, completedHydras, completedAudits, prayerCount, healthMap),
+  const layout = useMemo(() =>
+    buildGarden(allHabits, pomodoros, completedHydras, completedAudits, prayerCount, healthMap),
     [allHabits, pomodoros, completedHydras, completedAudits, prayerCount, healthMap]
   )
 
-  const [grid, setGrid] = useState(initialLayout.grid)
-  const [gridW, setGridW] = useState(initialLayout.gridW)
-  const [gridH, setGridH] = useState(initialLayout.gridH)
+  const [grid, setGrid] = useState(layout.grid)
+  const [side, setSide] = useState(layout.side)
+  useEffect(() => { setGrid(layout.grid); setSide(layout.side) }, [layout])
 
-  useEffect(() => {
-    setGrid(initialLayout.grid)
-    setGridW(initialLayout.gridW)
-    setGridH(initialLayout.gridH)
-  }, [initialLayout])
+  // ── Drag state (desktop only) ────────────────────────────
+  const dragSrc = useRef<{ r: number; c: number; key: string } | null>(null)
+  const [ghostPos, setGhostPos] = useState<{ r: number; c: number } | null>(null)
 
-  // ── Drag and drop ────────────────────────────────────────
-  const dragSrc = useRef<{ r: number; c: number } | null>(null)
-  const [dragOver, setDragOver] = useState<{ r: number; c: number } | null>(null)
-
-  const handleDragStart = useCallback((r: number, c: number) => {
-    dragSrc.current = { r, c }
+  const handleDragStart = useCallback((r: number, c: number, key: string) => {
+    dragSrc.current = { r, c, key }
   }, [])
 
   const handleDragOver = useCallback((e: React.DragEvent, r: number, c: number) => {
     e.preventDefault()
-    setDragOver({ r, c })
+    e.dataTransfer.dropEffect = 'move'
+    setGhostPos({ r, c })
   }, [])
 
   const handleDrop = useCallback((r: number, c: number) => {
     const src = dragSrc.current
-    if (!src || (src.r === r && src.c === c)) {
-      dragSrc.current = null
-      setDragOver(null)
-      return
-    }
-    // Don't allow swapping with habit sub-cells or path
+    if (!src || (src.r === r && src.c === c)) { dragSrc.current = null; setGhostPos(null); return }
+
     const srcCell = grid[src.r]?.[src.c]
     const dstCell = grid[r]?.[c]
-    if (!srcCell || !dstCell) { dragSrc.current = null; setDragOver(null); return }
-    if (srcCell.type === 'habit' || dstCell.type === 'habit') { dragSrc.current = null; setDragOver(null); return }
-    if (srcCell.type === 'path' || dstCell.type === 'path') { dragSrc.current = null; setDragOver(null); return }
+    if (!srcCell?.item || !dstCell) { dragSrc.current = null; setGhostPos(null); return }
 
-    setGrid(prev => {
-      const next = prev.map(row => [...row])
-      next[r][c] = prev[src.r][src.c]
-      next[src.r][src.c] = prev[r][c]
-      return next
-    })
+    // Habits: 2x2 special handling
+    if (srcCell.item.kind === 'habit') {
+      // Find the TL corner of the habit
+      const habit = srcCell.item
+      if (habit.corner !== 'tl') { dragSrc.current = null; setGhostPos(null); return }
+      // Check if 2x2 fits at destination
+      if (r + 1 >= side || c + 1 >= side) { dragSrc.current = null; setGhostPos(null); return }
+      const destCells = [[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]]
+      const srcCells = [[src.r, src.c], [src.r, src.c + 1], [src.r + 1, src.c], [src.r + 1, src.c + 1]]
+      const srcSet = new Set(srcCells.map(([cr, cc]) => `${cr},${cc}`))
+      // All dest cells must be empty or part of the same habit
+      if (destCells.some(([cr, cc]) => {
+        const cell = grid[cr]?.[cc]
+        if (!cell) return true
+        if (cell.zone === 'path') return true
+        if (cell.item && !srcSet.has(`${cr},${cc}`)) return true
+        return false
+      })) { dragSrc.current = null; setGhostPos(null); return }
+
+      setGrid(prev => {
+        const next = prev.map(row => row.map(cell => ({ ...cell })))
+        // Clear old position
+        srcCells.forEach(([cr, cc]) => { next[cr][cc].item = null })
+        // Place at new position
+        const corners: Array<'tl' | 'tr' | 'bl' | 'br'> = ['tl', 'tr', 'bl', 'br']
+        destCells.forEach(([cr, cc], i) => {
+          next[cr][cc].item = { ...habit, corner: corners[i] }
+        })
+        return next
+      })
+      // Save position (TL corner)
+      const positions = loadPositions()
+      positions[habit.key] = { r, c }
+      savePositions(positions)
+    } else {
+      // 1x1 items: simple swap
+      setGrid(prev => {
+        const next = prev.map(row => row.map(cell => ({ ...cell })))
+        const temp = next[r][c].item
+        next[r][c].item = prev[src.r][src.c].item
+        next[src.r][src.c].item = temp
+        return next
+      })
+      // Save positions
+      const positions = loadPositions()
+      if (srcCell.item) positions[srcCell.item.key] = { r, c }
+      if (dstCell.item) positions[dstCell.item.key] = { r: src.r, c: src.c }
+      savePositions(positions)
+    }
+
     dragSrc.current = null
-    setDragOver(null)
-  }, [grid])
+    setGhostPos(null)
+  }, [grid, side])
 
   const handleDragEnd = useCallback(() => {
     dragSrc.current = null
-    setDragOver(null)
+    setGhostPos(null)
+  }, [])
+
+  // ── Right-click to remove ────────────────────────────────
+  const handleContextMenu = useCallback((e: React.MouseEvent, _key: string) => {
+    e.preventDefault()
   }, [])
 
   // ── Tooltip ──────────────────────────────────────────────
-  const handlePlantClick = useCallback((info: TooltipInfo, e: React.MouseEvent) => {
+  const handleItemClick = useCallback((info: TooltipInfo, e: React.MouseEvent) => {
     e.stopPropagation()
     const rect = (e.currentTarget as HTMLElement).closest('.terrarium-container')?.getBoundingClientRect()
     if (!rect) return
@@ -228,8 +456,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
 
   const dismissTooltip = useCallback(() => setTooltip(null), [])
 
-  const gridPx = gridW * CELL
-  const gridPxH = gridH * CELL
+  const gridPx = side * CELL
 
   return (
     <div className="space-y-4 pt-2">
@@ -243,7 +470,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
         <div
           className="terrarium-container"
           style={{
-            width: gridPx, height: gridPxH,
+            width: gridPx, height: gridPx,
             transform: 'rotateX(55deg) rotateZ(45deg)',
             transformStyle: 'preserve-3d',
             position: 'relative',
@@ -252,186 +479,128 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
         >
           {/* Ground */}
           <div className="absolute inset-0 rounded-lg" style={{
-            background: 'linear-gradient(135deg, #b3bda3 0%, #95a383 30%, #7ba887 60%, #788764 100%)',
+            background: 'linear-gradient(135deg, #bcc5aa 0%, #a3b08e 30%, #8aad7d 50%, #95a383 80%, #8a9472 100%)',
             boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
           }} />
           <div className="absolute inset-0 rounded-lg" style={{
-            background: 'radial-gradient(ellipse at 30% 40%, rgba(200,220,190,0.2) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(180,200,170,0.15) 0%, transparent 40%)',
+            background: 'radial-gradient(ellipse at 25% 35%, rgba(200,220,190,0.2) 0%, transparent 50%), radial-gradient(ellipse at 75% 65%, rgba(180,200,170,0.12) 0%, transparent 40%)',
           }} />
 
-          {/* Grid lines */}
-          {Array.from({ length: Math.max(gridW, gridH) + 1 }).map((_, i) => (
-            <div key={`line-${i}`}>
-              {i <= gridH && <div className="absolute" style={{ left: 0, right: 0, top: i * CELL, height: 1, background: 'rgba(30,80,20,0.06)' }} />}
-              {i <= gridW && <div className="absolute" style={{ top: 0, bottom: 0, left: i * CELL, width: 1, background: 'rgba(30,80,20,0.06)' }} />}
+          {/* Subtle grid */}
+          {Array.from({ length: side + 1 }).map((_, i) => (
+            <div key={`g${i}`}>
+              <div className="absolute" style={{ left: 0, right: 0, top: i * CELL, height: 1, background: 'rgba(30,80,20,0.04)' }} />
+              <div className="absolute" style={{ top: 0, bottom: 0, left: i * CELL, width: 1, background: 'rgba(30,80,20,0.04)' }} />
             </div>
           ))}
 
           {/* Cells */}
           {grid.map((row, r) => row.map((cell, c) => {
             const key = `${r}-${c}`
-            const isDragTarget = dragOver?.r === r && dragOver?.c === c
+            const isGhost = ghostPos?.r === r && ghostPos?.c === c
+            const item = cell.item
+            const zIdx = r * 2 + (item?.kind === 'habit' ? 1 : 0)
 
-            // ── Path stones ──
-            if (cell.type === 'path') {
+            // ── Ground features ──
+            if (!item) {
               return (
-                <div key={key} className="absolute" style={{ left: c * CELL, top: r * CELL, width: CELL, height: CELL }}>
-                  <svg className="absolute" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }} width="36" height="36" viewBox="0 0 36 36" fill="none">
-                    <ellipse cx="18" cy="18" rx="14" ry="12" fill="rgba(160,150,130,0.35)" />
-                    <ellipse cx="16" cy="16" rx="10" ry="8" fill="rgba(180,170,150,0.25)" />
-                    <ellipse cx="20" cy="20" rx="8" ry="6" fill="rgba(170,160,140,0.2)" />
-                  </svg>
+                <div
+                  key={key}
+                  className={`absolute transition-colors duration-300 ${isGhost ? 'bg-sage-300/20 rounded' : ''}`}
+                  style={{ left: c * CELL, top: r * CELL, width: CELL, height: CELL }}
+                  onDragOver={!isMobile ? (e) => handleDragOver(e, r, c) : undefined}
+                  onDrop={!isMobile ? () => handleDrop(r, c) : undefined}
+                >
+                  <GroundSVG feature={cell.ground} />
                 </div>
               )
             }
 
-            // ── Habit plants (2×2, only render from top-left) ──
-            if (cell.type === 'habit') {
-              if (cell.corner !== 'tl') return null
-              const stage = plantStage(cell.grind.current_streak)
+            // ── Habit (2x2, render from TL only) ──
+            if (item.kind === 'habit') {
+              if (item.corner !== 'tl') return null
+              const stage = plantStage(item.grind.current_streak)
+              const isDraggable = !isMobile
               return (
                 <div key={key} className="absolute" style={{
                   left: c * CELL, top: r * CELL, width: CELL * 2, height: CELL * 2,
-                  transformStyle: 'preserve-3d', zIndex: 5, pointerEvents: 'none',
+                  transformStyle: 'preserve-3d', zIndex: zIdx, pointerEvents: 'none',
                 }}>
-                  <div className="cursor-pointer" style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -80%)',
-                    transformOrigin: '0 0', transformStyle: 'preserve-3d', pointerEvents: 'auto',
-                  }} onClick={(e) => handlePlantClick({
-                    type: 'habit', title: cell.grind.title, createdAt: cell.grind.created_at,
-                    streak: cell.grind.current_streak, bestStreak: cell.grind.best_streak, health: cell.health,
-                  }, e)}>
-                    <PlantSVG stage={stage} size="md" colorVariant={cell.grind.color_variant} health={cell.health} />
+                  <div
+                    className={`${isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                    style={{
+                      position: 'absolute', left: '50%', top: '50%',
+                      transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -80%)',
+                      transformOrigin: '0 0', transformStyle: 'preserve-3d', pointerEvents: 'auto',
+                      transition: 'filter 0.3s',
+                    }}
+                    draggable={isDraggable}
+                    onDragStart={isDraggable ? () => handleDragStart(r, c, item.key) : undefined}
+                    onDragEnd={isDraggable ? handleDragEnd : undefined}
+                    onClick={(e) => handleItemClick({
+                      type: 'habit', title: item.grind.title, createdAt: item.grind.created_at,
+                      streak: item.grind.current_streak, bestStreak: item.grind.best_streak, health: item.health,
+                    }, e)}
+                    onContextMenu={(e) => handleContextMenu(e, item.key)}
+                  >
+                    <PlantSVG stage={stage} size="md" colorVariant={item.grind.color_variant} health={item.health} />
                   </div>
                 </div>
               )
             }
 
-            // Draggable wrapper for non-habit, non-path items
-            const isDraggable = cell.type !== 'empty'
-            const canDrop = cell.type === 'empty' || isDraggable
-
-            const dragProps = isDraggable ? {
-              draggable: true,
-              onDragStart: () => handleDragStart(r, c),
-              onDragEnd: handleDragEnd,
-            } : {}
-
-            const dropProps = canDrop ? {
-              onDragOver: (e: React.DragEvent) => handleDragOver(e, r, c),
-              onDrop: () => handleDrop(r, c),
-            } : {}
-
-            // ── Pomodoro bush ──
-            if (cell.type === 'pomodoro') {
-              const stage = pomodoroStage(cell.pomodoro.duration_minutes)
-              return (
-                <div key={key} className="absolute" style={{
-                  left: c * CELL, top: r * CELL, width: CELL, height: CELL,
-                  transformStyle: 'preserve-3d', zIndex: 3, pointerEvents: 'none',
-                }} {...dropProps}>
-                  <div className={`cursor-grab active:cursor-grabbing ${isDragTarget ? 'ring-2 ring-sage-400 ring-offset-1 rounded-full' : ''}`} style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -60%)',
-                    transformOrigin: '0 0', pointerEvents: 'auto',
-                  }} {...dragProps} onClick={(e) => handlePlantClick({
-                    type: 'pomodoro', taskTitle: cell.pomodoro.task_title,
-                    durationMinutes: cell.pomodoro.duration_minutes, completedAt: cell.pomodoro.completed_at,
-                  }, e)}>
-                    <BushSVG stage={stage} size={42} colorVariant={cell.colorIndex} />
-                  </div>
-                </div>
-              )
+            // ── 1x1 items ──
+            const { dx, dy } = organicOffset(item.key)
+            const isDraggable = !isMobile
+            const itemConfigs = {
+              pomodoro: { lift: '-60%', size: 42, z: 4 },
+              trophy: { lift: '-75%', size: 40, z: 4 },
+              audit: { lift: '-65%', size: 40, z: 4 },
+              prayer: { lift: '-60%', size: 38, z: 2 },
             }
+            const cfg = itemConfigs[item.kind]
 
-            // ── Trophy ──
-            if (cell.type === 'trophy') {
-              const variant = trophyVariantFromId(cell.task.id)
-              const tier = trophyTier(cell.task.steps?.length ?? 0)
-              const { name: trophyName } = getTrophyConfig(variant, tier)
-              return (
-                <div key={key} className="absolute" style={{
-                  left: c * CELL, top: r * CELL, width: CELL, height: CELL,
-                  transformStyle: 'preserve-3d', zIndex: 3, pointerEvents: 'none',
-                }} {...dropProps}>
-                  <div className={`cursor-grab active:cursor-grabbing ${isDragTarget ? 'ring-2 ring-sage-400 ring-offset-1 rounded-full' : ''}`} style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -75%)',
-                    transformOrigin: '0 0', pointerEvents: 'auto',
-                  }} {...dragProps} onClick={(e) => handlePlantClick({
-                    type: 'trophy', title: cell.task.title, completedAt: cell.task.completed_at!,
-                    stepCount: cell.task.steps?.length ?? 0, trophyName,
-                  }, e)}>
-                    <TrophySVG size={40} variant={variant} tier={tier} />
-                  </div>
-                </div>
-              )
-            }
-
-            // ── Audit bouquet ──
-            if (cell.type === 'audit') {
-              return (
-                <div key={key} className="absolute" style={{
-                  left: c * CELL, top: r * CELL, width: CELL, height: CELL,
-                  transformStyle: 'preserve-3d', zIndex: 3, pointerEvents: 'none',
-                }} {...dropProps}>
-                  <div className={`cursor-grab active:cursor-grabbing ${isDragTarget ? 'ring-2 ring-sage-400 ring-offset-1 rounded-full' : ''}`} style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -65%)',
-                    transformOrigin: '0 0', pointerEvents: 'auto',
-                  }} {...dragProps} onClick={(e) => handlePlantClick({
-                    type: 'audit', completedAt: cell.audit.completed_at!, entryCount: cell.audit.entries.length,
-                  }, e)}>
-                    <AuditBouquetSVG size={40} />
-                  </div>
-                </div>
-              )
-            }
-
-            // ── Prayer rose ──
-            if (cell.type === 'prayer') {
-              return (
-                <div key={key} className="absolute" style={{
-                  left: c * CELL, top: r * CELL, width: CELL, height: CELL,
-                  transformStyle: 'preserve-3d', zIndex: 3, pointerEvents: 'none',
-                }} {...dropProps}>
-                  <div className={`cursor-grab active:cursor-grabbing ${isDragTarget ? 'ring-2 ring-sage-400 ring-offset-1 rounded-full' : ''}`} style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -60%)',
-                    transformOrigin: '0 0', pointerEvents: 'auto',
-                  }} {...dragProps} onClick={(e) => handlePlantClick({ type: 'prayer' }, e)}>
-                    <WhiteRoseSVG size={38} />
-                  </div>
-                </div>
-              )
-            }
-
-            // ── Empty cell (drop target + ambient decoration) ──
-            const hash = cellHash(r, c)
             return (
-              <div
-                key={key}
-                className={`absolute ${isDragTarget ? 'bg-sage-300/30 rounded' : ''}`}
-                style={{ left: c * CELL, top: r * CELL, width: CELL, height: CELL }}
-                {...dropProps}
+              <div key={key} className="absolute" style={{
+                left: c * CELL + dx, top: r * CELL + dy, width: CELL, height: CELL,
+                transformStyle: 'preserve-3d', zIndex: zIdx, pointerEvents: 'none',
+                transition: 'left 0.3s ease, top 0.3s ease',
+              }}
+                onDragOver={isDraggable ? (e) => handleDragOver(e, r, c) : undefined}
+                onDrop={isDraggable ? () => handleDrop(r, c) : undefined}
               >
-                {hash % 7 === 0 && (
-                  <svg className="absolute" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }} width="12" height="10" viewBox="0 0 12 10" fill="none">
-                    <path d="M6 9 L4 3 L6 5 L8 2 L6 5 L9 4 L6 9Z" fill="rgba(80,140,50,0.25)" />
-                  </svg>
-                )}
-                {hash % 11 === 0 && (
-                  <svg className="absolute" style={{ left: '40%', top: '55%', transform: 'translate(-50%, -50%)' }} width="8" height="6" viewBox="0 0 8 6" fill="none">
-                    <ellipse cx="4" cy="3" rx="3.5" ry="2.5" fill="rgba(120,115,100,0.2)" />
-                  </svg>
-                )}
-                {hash % 17 === 0 && (
-                  <svg className="absolute" style={{ left: '60%', top: '45%', transform: 'translate(-50%, -50%)' }} width="8" height="8" viewBox="0 0 8 8" fill="none">
-                    <circle cx="4" cy="4" r="2" fill="rgba(255,220,180,0.3)" />
-                    <circle cx="4" cy="4" r="0.8" fill="rgba(220,180,100,0.4)" />
-                  </svg>
-                )}
+                <div
+                  className={`${isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${isGhost ? 'ring-2 ring-sage-400/50 rounded-full' : ''}`}
+                  style={{
+                    position: 'absolute', left: '50%', top: '50%',
+                    transform: `translateZ(${cfg.z}px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, ${cfg.lift})`,
+                    transformOrigin: '0 0', pointerEvents: 'auto',
+                    transition: 'transform 0.2s ease',
+                  }}
+                  draggable={isDraggable}
+                  onDragStart={isDraggable ? () => handleDragStart(r, c, item.key) : undefined}
+                  onDragEnd={isDraggable ? handleDragEnd : undefined}
+                  onContextMenu={(e) => handleContextMenu(e, item.key)}
+                  onClick={(e) => {
+                    if (item.kind === 'pomodoro') {
+                      handleItemClick({ type: 'pomodoro', taskTitle: item.pomodoro.task_title, durationMinutes: item.pomodoro.duration_minutes, completedAt: item.pomodoro.completed_at }, e)
+                    } else if (item.kind === 'trophy') {
+                      const variant = trophyVariantFromId(item.task.id)
+                      const tier = trophyTier(item.task.steps?.length ?? 0)
+                      const { name: trophyName } = getTrophyConfig(variant, tier)
+                      handleItemClick({ type: 'trophy', title: item.task.title, completedAt: item.task.completed_at!, stepCount: item.task.steps?.length ?? 0, trophyName }, e)
+                    } else if (item.kind === 'audit') {
+                      handleItemClick({ type: 'audit', completedAt: item.audit.completed_at!, entryCount: item.audit.entries.length }, e)
+                    } else if (item.kind === 'prayer') {
+                      handleItemClick({ type: 'prayer' }, e)
+                    }
+                  }}
+                >
+                  {item.kind === 'pomodoro' && <BushSVG stage={pomodoroStage(item.pomodoro.duration_minutes)} size={cfg.size} colorVariant={item.colorIndex} />}
+                  {item.kind === 'trophy' && <TrophySVG size={cfg.size} variant={trophyVariantFromId(item.task.id)} tier={trophyTier(item.task.steps?.length ?? 0)} />}
+                  {item.kind === 'audit' && <AuditBouquetSVG size={cfg.size} />}
+                  {item.kind === 'prayer' && <WhiteRoseSVG size={cfg.size} />}
+                </div>
               </div>
             )
           }))}
@@ -445,8 +614,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
             }}>
               <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-stone-200 px-3 py-2 text-left"
                 style={{ transform: 'translate(-50%, -100%)', minWidth: 140, maxWidth: 200 }}
-                onClick={(e) => e.stopPropagation()}
-              >
+                onClick={(e) => e.stopPropagation()}>
                 {tooltip.info.type === 'habit' && (
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-stone-800">{tooltip.info.title}</p>
@@ -489,15 +657,16 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
         </div>
       </div>
 
-      {(pomodoros.length > 0 || prayerCount > 0 || completedHydras.length > 0 || completedAudits.length > 0) && (
+      {(pomodoros.length > 0 || prayerCount > 0 || completedHydras.length > 0 || completedAudits.length > 0 || allHabits.length > 0) && (
         <p className="text-center text-[10px] text-stone-300">
           {[
+            allHabits.length > 0 && `${allHabits.length} plant${allHabits.length !== 1 ? 's' : ''}`,
             pomodoros.length > 0 && `${pomodoros.length} pomodoro${pomodoros.length !== 1 ? 's' : ''}`,
             completedHydras.length > 0 && `${completedHydras.length} troph${completedHydras.length !== 1 ? 'ies' : 'y'}`,
             completedAudits.length > 0 && `${completedAudits.length} audit${completedAudits.length !== 1 ? 's' : ''}`,
             prayerCount > 0 && `${prayerCount} rose${prayerCount !== 1 ? 's' : ''}`,
           ].filter(Boolean).join(' · ')}
-          {' · drag to rearrange'}
+          {!isMobile && ' · drag to rearrange'}
         </p>
       )}
     </div>
