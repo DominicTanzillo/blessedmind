@@ -339,12 +339,14 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
                 <div
                   key={step.id}
                   className={`flex items-center gap-2 text-xs ${onCompleteStep ? 'cursor-pointer hover:bg-sage-50 rounded px-1 -mx-1 py-0.5' : ''}`}
-                  onClick={onCompleteStep && !step.completed ? () => onCompleteStep(step.id) : undefined}
+                  onClick={onCompleteStep ? () => {
+                    if (step.completed) { onUncomplete(step.id) } else { onCompleteStep(step.id) }
+                  } : undefined}
                 >
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (onCompleteStep) onCompleteStep(step.id)
+                      if (step.completed) { onUncomplete(step.id) } else if (onCompleteStep) { onCompleteStep(step.id) }
                     }}
                     disabled={!onCompleteStep}
                     className={`w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center transition ${
