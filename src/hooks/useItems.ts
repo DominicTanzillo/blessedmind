@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { calculateDefaultStepDates } from '../lib/hydra'
 import type { Item, NewTask, Step } from '../types'
 
 /**
@@ -86,6 +87,42 @@ export function useItems() {
       })
   }, [rawItems])
 
+  // ── Scoreable items: simple tasks + individual steps ─────
+  // Steps get effective due_date computed from parent.
+  // These are what the focus batch ranks and displays.
+  const scoreableItems = useMemo(() => {
+    const result: Item[] = []
+    for (const task of tasks) {
+      if (task.children && task.children.length > 0) {
+        // Multi-step: each child is individually scoreable
+        const defaults = task.due_date
+          ? calculateDefaultStepDates(task.children.length, task.due_date)
+          : []
+        for (let i = 0; i < task.children.length; i++) {
+          const child = task.children[i]
+          result.push({
+            ...child,
+            // Fill in effective due_date if step doesn't have one
+            due_date: child.due_date ?? defaults[i] ?? task.due_date,
+          })
+        }
+      } else {
+        // Simple task: scoreable directly
+        result.push(task)
+      }
+    }
+    return result
+  }, [tasks])
+
+  // ── Parent lookup map (for display context of steps) ─────
+  const parentMap = useMemo(() => {
+    const map = new Map<string, Item>()
+    for (const task of tasks) {
+      map.set(task.id, task)
+    }
+    return map
+  }, [tasks])
+
   // ── Add item (parent + children) ─────────────────────────
   const addTask = useCallback(async (task: NewTask) => {
     const { data, error } = await supabase
@@ -120,18 +157,15 @@ export function useItems() {
       await supabase.from('items').insert(children)
     }
 
-    // Refetch to get complete tree
     await fetchItems()
     return parent
   }, [fetchItems])
 
   // ── Update item ──────────────────────────────────────────
   const updateTask = useCallback(async (id: string, updates: Partial<Item> & { steps?: Step[] | null }) => {
-    // Separate steps from item updates
     const { steps: newSteps, children: _, ...itemUpdates } = updates
     const cleanUpdates = { ...itemUpdates, updated_at: new Date().toISOString() }
 
-    // Remove client-only fields before sending to DB
     delete (cleanUpdates as Record<string, unknown>)['children']
 
     await supabase.from('items').update(cleanUpdates).eq('id', id)
@@ -143,7 +177,6 @@ export function useItems() {
       const parentItem = rawItems.find(i => i.id === id)
 
       if (!newSteps || newSteps.length === 0) {
-        // Delete all children
         if (existingChildren.length > 0) {
           await supabase.from('items').delete().eq('parent_id', id)
         }
@@ -153,7 +186,6 @@ export function useItems() {
         for (let i = 0; i < newSteps.length; i++) {
           const step = newSteps[i]
           if (existingIds.has(step.id)) {
-            // Update existing child
             keptIds.add(step.id)
             await supabase.from('items').update({
               title: step.title,
@@ -163,7 +195,6 @@ export function useItems() {
               updated_at: new Date().toISOString(),
             }).eq('id', step.id)
           } else {
-            // Create new child
             await supabase.from('items').insert({
               title: step.title,
               completed: step.completed || false,
@@ -178,7 +209,6 @@ export function useItems() {
           }
         }
 
-        // Delete removed children
         const toDelete = existingChildren.filter(c => !keptIds.has(c.id))
         if (toDelete.length > 0) {
           await supabase.from('items').delete().in('id', toDelete.map(c => c.id))
@@ -186,112 +216,71 @@ export function useItems() {
       }
     }
 
-    // Refetch for consistency
     await fetchItems()
   }, [rawItems, fetchItems])
 
-  // ── Complete item ────────────────────────────────────────
+  // ── Complete item (works for both tasks and steps) ────────
+  // If completing a step, auto-completes parent when all siblings done.
   const completeTask = useCallback(async (id: string) => {
     const now = new Date().toISOString()
-    await updateTask(id, { completed: true, completed_at: now })
-  }, [updateTask])
+    const item = rawItems.find(i => i.id === id)
+
+    await supabase.from('items').update({
+      completed: true,
+      completed_at: now,
+      updated_at: now,
+    }).eq('id', id)
+
+    // If this is a step, check if all siblings are done → auto-complete parent
+    if (item?.parent_id) {
+      const siblings = rawItems.filter(i => i.parent_id === item.parent_id)
+      const allDone = siblings.every(s => s.id === id || s.completed)
+      if (allDone) {
+        await supabase.from('items').update({
+          completed: true,
+          completed_at: now,
+          updated_at: now,
+        }).eq('id', item.parent_id)
+      }
+    }
+
+    await fetchItems()
+  }, [rawItems, fetchItems])
 
   // ── Uncomplete item ──────────────────────────────────────
+  // If uncompleting a step whose parent was auto-completed, uncomplete parent too.
   const uncompleteTask = useCallback(async (id: string) => {
-    const task = tasks.find(t => t.id === id)
+    const now = new Date().toISOString()
+    const item = rawItems.find(i => i.id === id)
 
-    if (task?.children && task.children.length > 0) {
-      // Reopen the last completed child
-      const completedChildren = task.children
-        .map((c, i) => ({ c, i }))
-        .filter(({ c }) => c.completed)
-      const lastCompleted = completedChildren[completedChildren.length - 1]
+    await supabase.from('items').update({
+      completed: false,
+      completed_at: null,
+      updated_at: now,
+    }).eq('id', id)
 
-      if (lastCompleted) {
+    // If this is a step and parent was auto-completed, uncomplete parent
+    if (item?.parent_id) {
+      const parent = rawItems.find(i => i.id === item.parent_id)
+      if (parent?.completed) {
         await supabase.from('items').update({
           completed: false,
           completed_at: null,
-          updated_at: new Date().toISOString(),
-        }).eq('id', lastCompleted.c.id)
+          updated_at: now,
+        }).eq('id', item.parent_id)
       }
-
-      // Uncomplete parent too
-      await supabase.from('items').update({
-        completed: false,
-        completed_at: null,
-        updated_at: new Date().toISOString(),
-      }).eq('id', id)
-
-      await fetchItems()
-    } else {
-      await updateTask(id, { completed: false, completed_at: null })
     }
-  }, [tasks, updateTask, fetchItems])
+
+    await fetchItems()
+  }, [rawItems, fetchItems])
 
   // ── Delete item ──────────────────────────────────────────
   const deleteTask = useCallback(async (id: string) => {
-    // CASCADE will delete children
     const { error } = await supabase.from('items').delete().eq('id', id)
     if (!error) {
       setRawItems(prev => prev.filter(i => i.id !== id && i.parent_id !== id))
     }
   }, [])
-
-  // ── Complete current step of a multi-step task ───────────
-  const completeStep = useCallback(async (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId)
-    if (!task?.children || task.children.length === 0) return
-
-    const currentChild = task.children.find(c => !c.completed)
-    if (!currentChild) return
-
-    const now = new Date().toISOString()
-    await supabase.from('items').update({
-      completed: true,
-      completed_at: now,
-      updated_at: now,
-    }).eq('id', currentChild.id)
-
-    // Check if all children are now done
-    const allDone = task.children.every(c => c.id === currentChild.id || c.completed)
-    if (allDone) {
-      await supabase.from('items').update({
-        completed: true,
-        completed_at: now,
-        updated_at: now,
-      }).eq('id', taskId)
-    }
-
-    await fetchItems()
-  }, [tasks, fetchItems])
-
-  // ── Complete a specific step by index ────────────────────
-  const completeSpecificStep = useCallback(async (taskId: string, stepIndex: number) => {
-    const task = tasks.find(t => t.id === taskId)
-    if (!task?.children || stepIndex < 0 || stepIndex >= task.children.length) return
-
-    const child = task.children[stepIndex]
-    if (!child) return
-
-    const now = new Date().toISOString()
-    await supabase.from('items').update({
-      completed: true,
-      completed_at: now,
-      updated_at: now,
-    }).eq('id', child.id)
-
-    // Check if all children are now done
-    const allDone = task.children.every(c => c.id === child.id || c.completed)
-    if (allDone) {
-      await supabase.from('items').update({
-        completed: true,
-        completed_at: now,
-        updated_at: now,
-      }).eq('id', taskId)
-    }
-
-    await fetchItems()
-  }, [tasks, fetchItems])
 
   // ── Star / Unstar ────────────────────────────────────────
   const starTask = useCallback(async (id: string) => {
@@ -321,6 +310,8 @@ export function useItems() {
 
   return {
     tasks,
+    scoreableItems,
+    parentMap,
     loading,
     fetchTasks: fetchItems,
     addTask,
@@ -328,8 +319,6 @@ export function useItems() {
     completeTask,
     uncompleteTask,
     deleteTask,
-    completeStep,
-    completeSpecificStep,
     starTask,
     unstarTask,
     convertToWaiting,
@@ -337,5 +326,4 @@ export function useItems() {
   }
 }
 
-// Backward compat alias
 export const useTasks = useItems

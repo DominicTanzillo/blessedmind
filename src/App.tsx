@@ -22,7 +22,7 @@ import WaitingDatePrompt from './components/waiting/WaitingDatePrompt'
 
 export default function App() {
   const { authenticated, login, logout, error } = useAuth()
-  const { tasks, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, completeSpecificStep, starTask, unstarTask, convertToWaiting, reactivateTask } = useItems()
+  const { tasks, scoreableItems, parentMap, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, starTask, unstarTask, convertToWaiting, reactivateTask } = useItems()
   const {
     grinds,
     retiredGrinds,
@@ -48,7 +48,7 @@ export default function App() {
     generateNewBatch,
     refreshBatch,
     loading: batchLoading,
-  } = useFocusBatch(tasks)
+  } = useFocusBatch(scoreableItems)
   const {
     pomodoros,
     timerActive,
@@ -127,7 +127,6 @@ export default function App() {
       allCompleted={allCompleted}
       onComplete={completeTask}
       onUncomplete={uncompleteTask}
-      onCompleteStep={completeStep}
       onConvertToWaiting={handleConvertToWaiting}
       onEdit={handleEdit}
       onNextBatch={generateNewBatch}
@@ -140,7 +139,7 @@ export default function App() {
       healthMap={healthMap}
       onStartPomodoro={startTimer}
       pomodoroActive={timerActive}
-      onCompleteSpecificStep={completeSpecificStep}
+      parentMap={parentMap}
     />
   )
 
@@ -155,7 +154,7 @@ export default function App() {
       onUnstar={unstarTask}
       onConvertToWaiting={handleConvertToWaiting}
       onAddClick={handleAddClick}
-      onCompleteSpecificStep={completeSpecificStep}
+      onCompleteStep={completeTask}
     />
   )
 

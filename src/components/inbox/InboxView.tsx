@@ -13,10 +13,10 @@ interface Props {
   onUnstar: (id: string) => void
   onConvertToWaiting: (id: string) => void
   onAddClick: () => void
-  onCompleteSpecificStep?: (taskId: string, stepIndex: number) => void
+  onCompleteStep?: (stepId: string) => void
 }
 
-export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, onEdit, onStar, onUnstar, onConvertToWaiting, onAddClick, onCompleteSpecificStep }: Props) {
+export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, onEdit, onStar, onUnstar, onConvertToWaiting, onAddClick, onCompleteStep }: Props) {
   const [filter, setFilter] = useState<TaskFilter>({
     search: '',
     category: '',
@@ -89,7 +89,7 @@ export default function InboxView({ tasks, onComplete, onUncomplete, onDelete, o
             onStar={onStar}
             onUnstar={onUnstar}
             onConvertToWaiting={onConvertToWaiting}
-            onCompleteSpecificStep={onCompleteSpecificStep}
+            onCompleteStep={onCompleteStep}
           />
         ))}
       </div>

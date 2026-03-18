@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { rankTasks } from '../lib/prioritize'
 import { BATCH_SIZE } from '../lib/constants'
-import type { Task, FocusBatch } from '../types'
+import type { Item, FocusBatch } from '../types'
 
-export function useFocusBatch(tasks: Task[]) {
+export function useFocusBatch(tasks: Item[]) {
   const [batch, setBatch] = useState<FocusBatch | null>(null)
   const [loading, setLoading] = useState(true)
   const generatingRef = useRef(false)

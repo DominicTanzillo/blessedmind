@@ -3,8 +3,9 @@ import TaskCard from './TaskCard'
 import GrindCard from '../grind/GrindCard'
 import { getGreeting, getTimeContext, getBatchCompleteMessage, getEmptyStateMessage } from '../../lib/celebrations'
 import { playBlessedDay, playRefresh } from '../../lib/sounds'
-import { calculateDefaultStepDates } from '../../lib/hydra'
-import type { Task, Grind, PlantHealth } from '../../types'
+import type { Task, Item, Grind, PlantHealth } from '../../types'
+import type { Category } from '../../lib/constants'
+import { CATEGORY_EMOJI } from '../../lib/constants'
 
 interface Props {
   batchTasks: Task[]
@@ -12,7 +13,6 @@ interface Props {
   allCompleted: boolean
   onComplete: (id: string) => void
   onUncomplete: (id: string) => void
-  onCompleteStep: (id: string) => void
   onConvertToWaiting: (id: string) => void
   onEdit: (id: string, updates: Partial<Task>) => void
   onNextBatch: () => void
@@ -25,40 +25,7 @@ interface Props {
   healthMap: Map<string, PlantHealth>
   onStartPomodoro: (minutes: number, title: string, grindId: string | null) => void
   pomodoroActive: boolean
-  onCompleteSpecificStep?: (taskId: string, stepIndex: number) => void
-}
-
-type FocusItem = { task: Task; stepIdx: number | null }
-
-function expandToFocusItems(batchTasks: Task[]): FocusItem[] {
-  const items: FocusItem[] = []
-  const today = new Date().toLocaleDateString('en-CA')
-
-  for (const task of batchTasks) {
-    if (task.steps && task.steps.length > 1 && !task.completed) {
-      const defaults = task.due_date
-        ? calculateDefaultStepDates(task.steps.length, task.due_date)
-        : []
-
-      for (let i = 0; i < task.steps.length; i++) {
-        const step = task.steps[i]
-        if (step.completed) continue // completed steps disappear like completed tasks
-
-        const stepDate = step.due_date ?? defaults[i] ?? null
-        const isDue = stepDate ? stepDate <= today : false
-        const isCurrentStep = i === task.steps.findIndex(s => !s.completed)
-
-        // Show: due/overdue steps, or the current (first incomplete) step
-        if (isDue || isCurrentStep) {
-          items.push({ task, stepIdx: i })
-        }
-      }
-    } else {
-      items.push({ task, stepIdx: null })
-    }
-  }
-
-  return items
+  parentMap: Map<string, Item>
 }
 
 export default function DashboardView({
@@ -67,7 +34,6 @@ export default function DashboardView({
   allCompleted,
   onComplete,
   onUncomplete,
-  onCompleteStep,
   onConvertToWaiting,
   onEdit,
   onNextBatch,
@@ -80,7 +46,7 @@ export default function DashboardView({
   healthMap,
   onStartPomodoro,
   pomodoroActive,
-  onCompleteSpecificStep,
+  parentMap,
 }: Props) {
   const [blessedMessage] = useState(() => getBatchCompleteMessage())
   const greeting = getGreeting()
@@ -89,7 +55,6 @@ export default function DashboardView({
   const everythingCompleted = (allCompleted || batchTasks.length === 0) && grindsAllDone && (batchTasks.length > 0 || enabledGrindCount > 0)
   const prevAllCompleted = useRef(false)
 
-  // Play blessed day sound when everything just completed
   useEffect(() => {
     if (everythingCompleted && !prevAllCompleted.current) {
       playBlessedDay()
@@ -107,8 +72,17 @@ export default function DashboardView({
     onNextBatch()
   }
 
-  // Expand hydra tasks into step-level focus items — keep original position
-  const focusItems = expandToFocusItems(batchTasks)
+  // For each batch item, resolve parent context if it's a step
+  function getParentTitle(item: Task): string | undefined {
+    if (item.parent_id) {
+      const parent = parentMap.get(item.parent_id)
+      if (parent) {
+        const emoji = CATEGORY_EMOJI[parent.category as Category] ?? '📋'
+        return `${emoji} ${parent.title}`
+      }
+    }
+    return undefined
+  }
 
   if (loading) {
     return (
@@ -119,9 +93,6 @@ export default function DashboardView({
     )
   }
 
-  // ============================================================
-  // EMPTY STATE - Nothing to do
-  // ============================================================
   if (batchTasks.length === 0 && totalIncomplete === 0 && enabledGrindCount === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -137,7 +108,7 @@ export default function DashboardView({
   }
 
   // ============================================================
-  // ALL 3 COMPLETED - Blessed Day celebration
+  // ALL COMPLETED - Blessed Day celebration
   // ============================================================
   if (everythingCompleted) {
     return (
@@ -158,14 +129,12 @@ export default function DashboardView({
           <p className="text-stone-400 text-xs italic">{timeContext}</p>
         </div>
 
-        {/* Completed tasks - visible, checked off */}
         <div className="space-y-3">
-          {focusItems.map((item, i) => (
-            <TaskCard key={item.stepIdx != null ? `${item.task.id}-s${item.stepIdx}` : item.task.id} task={item.task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={i} stepIndex={item.stepIdx} onCompleteSpecificStep={onCompleteSpecificStep} />
+          {batchTasks.map((item, i) => (
+            <TaskCard key={item.id} task={item} onComplete={onComplete} onUncomplete={onUncomplete} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={i} parentTitle={getParentTitle(item)} />
           ))}
         </div>
 
-        {/* Mental load + next batch */}
         {totalIncomplete > 0 && (
           <div className="max-w-xs mx-auto">
             <div className="flex justify-between text-xs text-stone-400 mb-2">
@@ -201,7 +170,7 @@ export default function DashboardView({
   }
 
   // ============================================================
-  // FOCUS STATE - Show all 3 tasks. Completed ones checked off at bottom.
+  // FOCUS STATE - Items stay in position, completed ones show checked off
   // ============================================================
   return (
     <div className="space-y-6 py-2">
@@ -209,7 +178,6 @@ export default function DashboardView({
         <p className="text-stone-400 text-sm">{greeting}</p>
         <h1 className="text-xl font-semibold text-stone-800">Your Focus</h1>
 
-        {/* Progress dots — grind dots (sage) + task dots */}
         <div className="flex items-center justify-center gap-3 pt-2">
           {Array.from({ length: enabledGrindCount }).map((_, i) => (
             <div key={`g-${i}`} className="relative">
@@ -241,17 +209,15 @@ export default function DashboardView({
         </p>
       </div>
 
-      {/* Active grinds first, then task cards */}
       <div className="space-y-3">
         {activeGrinds.map((g, i) => (
           <GrindCard key={g.id} grind={g} health={healthMap.get(g.id)} onComplete={onCompleteGrind} index={i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} />
         ))}
-        {focusItems.map((item, i) => (
-          <TaskCard key={item.stepIdx != null ? `${item.task.id}-s${item.stepIdx}` : item.task.id} task={item.task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={activeGrinds.length + i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} stepIndex={item.stepIdx} onCompleteSpecificStep={onCompleteSpecificStep} />
+        {batchTasks.map((item, i) => (
+          <TaskCard key={item.id} task={item} onComplete={onComplete} onUncomplete={onUncomplete} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={activeGrinds.length + i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} parentTitle={getParentTitle(item)} />
         ))}
       </div>
 
-      {/* Refresh batch + hint */}
       <div className="text-center space-y-3">
         <p className="text-xs text-stone-400 leading-relaxed">
           Whatever your hand finds to do, do it with all your might.
@@ -259,7 +225,6 @@ export default function DashboardView({
           The rest is safely held.
         </p>
 
-        {/* Refresh batch button - subtle, always available */}
         {totalIncomplete > batchTasks.filter(t => !t.completed).length && (
           <button
             onClick={handleRefreshBatch}

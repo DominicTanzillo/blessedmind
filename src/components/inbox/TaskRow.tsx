@@ -15,7 +15,7 @@ interface Props {
   onStar: (id: string) => void
   onUnstar: (id: string) => void
   onConvertToWaiting?: (id: string) => void
-  onCompleteSpecificStep?: (taskId: string, stepIndex: number) => void
+  onCompleteStep?: (stepId: string) => void
 }
 
 function formatRelativeDate(dateStr: string | null): string {
@@ -31,7 +31,7 @@ function formatRelativeDate(dateStr: string | null): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEdit, onStar, onUnstar, onConvertToWaiting, onCompleteSpecificStep }: Props) {
+export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEdit, onStar, onUnstar, onConvertToWaiting, onCompleteStep }: Props) {
   const [editing, setEditing] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
@@ -338,15 +338,15 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
               return (
                 <div
                   key={step.id}
-                  className={`flex items-center gap-2 text-xs ${onCompleteSpecificStep ? 'cursor-pointer hover:bg-sage-50 rounded px-1 -mx-1 py-0.5' : ''}`}
-                  onClick={onCompleteSpecificStep && !step.completed ? () => onCompleteSpecificStep(task.id, i) : undefined}
+                  className={`flex items-center gap-2 text-xs ${onCompleteStep ? 'cursor-pointer hover:bg-sage-50 rounded px-1 -mx-1 py-0.5' : ''}`}
+                  onClick={onCompleteStep && !step.completed ? () => onCompleteStep(step.id) : undefined}
                 >
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      if (onCompleteSpecificStep) onCompleteSpecificStep(task.id, i)
+                      if (onCompleteStep) onCompleteStep(step.id)
                     }}
-                    disabled={!onCompleteSpecificStep}
+                    disabled={!onCompleteStep}
                     className={`w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center transition ${
                       step.completed
                         ? 'bg-complete border-complete text-white'
