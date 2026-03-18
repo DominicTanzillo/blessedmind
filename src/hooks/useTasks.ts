@@ -141,6 +141,26 @@ export function useTasks() {
     }
   }, [tasks, updateTask])
 
+  // Complete a specific step by index (not just the first incomplete).
+  // If all steps are now done, complete the whole task.
+  const completeSpecificStep = useCallback(async (taskId: string, stepIndex: number) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task?.steps || stepIndex < 0 || stepIndex >= task.steps.length) return
+
+    const updatedSteps: Step[] = task.steps.map((s, i) =>
+      i === stepIndex ? { ...s, completed: true } : s
+    )
+
+    const allDone = updatedSteps.every(s => s.completed)
+
+    if (allDone) {
+      const now = new Date().toISOString()
+      await updateTask(taskId, { steps: updatedSteps, completed: true, completed_at: now })
+    } else {
+      await updateTask(taskId, { steps: updatedSteps })
+    }
+  }, [tasks, updateTask])
+
   const starTask = useCallback(async (id: string) => {
     await updateTask(id, { starred: true, starred_at: new Date().toISOString() })
   }, [updateTask])
@@ -160,5 +180,5 @@ export function useTasks() {
     await updateTask(id, { waiting: false })
   }, [updateTask])
 
-  return { tasks, loading, fetchTasks, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, starTask, unstarTask, convertToWaiting, reactivateTask }
+  return { tasks, loading, fetchTasks, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, completeSpecificStep, starTask, unstarTask, convertToWaiting, reactivateTask }
 }

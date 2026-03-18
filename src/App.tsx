@@ -22,7 +22,7 @@ import WaitingDatePrompt from './components/waiting/WaitingDatePrompt'
 
 export default function App() {
   const { authenticated, login, logout, error } = useAuth()
-  const { tasks, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, starTask, unstarTask, convertToWaiting, reactivateTask } = useTasks()
+  const { tasks, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, completeSpecificStep, starTask, unstarTask, convertToWaiting, reactivateTask } = useTasks()
   const {
     grinds,
     retiredGrinds,
@@ -140,6 +140,7 @@ export default function App() {
       healthMap={healthMap}
       onStartPomodoro={startTimer}
       pomodoroActive={timerActive}
+      onCompleteSpecificStep={completeSpecificStep}
     />
   )
 

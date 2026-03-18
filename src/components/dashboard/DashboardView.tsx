@@ -3,6 +3,7 @@ import TaskCard from './TaskCard'
 import GrindCard from '../grind/GrindCard'
 import { getGreeting, getTimeContext, getBatchCompleteMessage, getEmptyStateMessage } from '../../lib/celebrations'
 import { playBlessedDay, playRefresh } from '../../lib/sounds'
+import { calculateDefaultStepDates } from '../../lib/hydra'
 import type { Task, Grind, PlantHealth } from '../../types'
 
 interface Props {
@@ -24,6 +25,38 @@ interface Props {
   healthMap: Map<string, PlantHealth>
   onStartPomodoro: (minutes: number, title: string, grindId: string | null) => void
   pomodoroActive: boolean
+  onCompleteSpecificStep?: (taskId: string, stepIndex: number) => void
+}
+
+type FocusItem = { task: Task; stepIdx: number | null }
+
+function expandToFocusItems(batchTasks: Task[]): FocusItem[] {
+  const items: FocusItem[] = []
+  const today = new Date().toLocaleDateString('en-CA')
+
+  for (const task of batchTasks) {
+    if (task.steps && task.steps.length > 1 && !task.completed) {
+      const defaults = task.due_date
+        ? calculateDefaultStepDates(task.steps.length, task.due_date)
+        : []
+
+      for (let i = 0; i < task.steps.length; i++) {
+        const step = task.steps[i]
+        const stepDate = step.due_date ?? defaults[i] ?? null
+        const isDue = stepDate ? stepDate <= today : false
+        const isCurrentStep = i === task.steps.findIndex(s => !s.completed)
+
+        // Show: completed steps, due/overdue steps, or the current step
+        if (step.completed || isDue || isCurrentStep) {
+          items.push({ task, stepIdx: i })
+        }
+      }
+    } else {
+      items.push({ task, stepIdx: null })
+    }
+  }
+
+  return items
 }
 
 export default function DashboardView({
@@ -45,6 +78,7 @@ export default function DashboardView({
   healthMap,
   onStartPomodoro,
   pomodoroActive,
+  onCompleteSpecificStep,
 }: Props) {
   const [blessedMessage] = useState(() => getBatchCompleteMessage())
   const greeting = getGreeting()
@@ -75,6 +109,14 @@ export default function DashboardView({
   const sortedBatch = [...batchTasks].sort((a, b) => {
     if (a.completed === b.completed) return 0
     return a.completed ? 1 : -1
+  })
+
+  // Expand hydra tasks into step-level focus items
+  const focusItems = expandToFocusItems(sortedBatch).sort((a, b) => {
+    const aCompleted = a.stepIdx != null ? (a.task.steps?.[a.stepIdx]?.completed ?? false) : a.task.completed
+    const bCompleted = b.stepIdx != null ? (b.task.steps?.[b.stepIdx]?.completed ?? false) : b.task.completed
+    if (aCompleted === bCompleted) return 0
+    return aCompleted ? 1 : -1
   })
 
   if (loading) {
@@ -127,8 +169,8 @@ export default function DashboardView({
 
         {/* Completed tasks - visible, checked off */}
         <div className="space-y-3">
-          {sortedBatch.map((task, i) => (
-            <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={i} />
+          {focusItems.map((item, i) => (
+            <TaskCard key={item.stepIdx != null ? `${item.task.id}-s${item.stepIdx}` : item.task.id} task={item.task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={i} stepIndex={item.stepIdx} onCompleteSpecificStep={onCompleteSpecificStep} />
           ))}
         </div>
 
@@ -213,8 +255,8 @@ export default function DashboardView({
         {activeGrinds.map((g, i) => (
           <GrindCard key={g.id} grind={g} health={healthMap.get(g.id)} onComplete={onCompleteGrind} index={i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} />
         ))}
-        {sortedBatch.map((task, i) => (
-          <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={activeGrinds.length + i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} />
+        {focusItems.map((item, i) => (
+          <TaskCard key={item.stepIdx != null ? `${item.task.id}-s${item.stepIdx}` : item.task.id} task={item.task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={activeGrinds.length + i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} stepIndex={item.stepIdx} onCompleteSpecificStep={onCompleteSpecificStep} />
         ))}
       </div>
 

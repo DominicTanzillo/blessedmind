@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Badge from '../ui/Badge'
 import { PRIORITIES, CATEGORIES, CATEGORY_EMOJI } from '../../lib/constants'
 import { playComplete } from '../../lib/sounds'
@@ -40,10 +40,21 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
   const [editCategory, setEditCategory] = useState(task.category)
   const [editSteps, setEditSteps] = useState<Step[]>(task.steps ?? [])
   const [editHasSteps, setEditHasSteps] = useState((task.steps ?? []).length > 0)
-  const [newStepInput, setNewStepInput] = useState('')
+
+  // Drag state for step reorder
+  const dragIndexRef = useRef<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   const priorityInfo = PRIORITIES.find(p => p.value === task.priority)
   const emoji = CATEGORY_EMOJI[task.category as Category] ?? '📋'
+
+  // Ensure editSteps always has a trailing empty entry for auto-register
+  function ensureTrailingEmpty(steps: Step[]): Step[] {
+    if (steps.length === 0 || steps[steps.length - 1].title.trim() !== '') {
+      return [...steps, { id: `step-new-${Date.now()}`, title: '', completed: false }]
+    }
+    return steps
+  }
 
   function startEditing() {
     setEditTitle(task.title)
@@ -51,21 +62,21 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
     setEditDueDate(task.due_date ?? '')
     setEditPriority(task.priority)
     setEditCategory(task.category)
-    setEditSteps(task.steps ?? [])
-    setEditHasSteps((task.steps ?? []).length > 0)
-    setNewStepInput('')
+    const existing = task.steps ?? []
+    setEditSteps(ensureTrailingEmpty(existing))
+    setEditHasSteps(existing.length > 0)
     setEditing(true)
   }
 
-  function addNewStep() {
-    const text = newStepInput.trim()
-    if (!text) return
-    setEditSteps(prev => [...prev, { id: `step-${Date.now()}`, title: text, completed: false }])
-    setNewStepInput('')
-  }
-
   function updateStepTitle(index: number, title: string) {
-    setEditSteps(prev => prev.map((s, i) => i === index ? { ...s, title } : s))
+    setEditSteps(prev => {
+      const next = prev.map((s, i) => i === index ? { ...s, title } : s)
+      // Auto-register: if typing in last entry, add a new empty one
+      if (index === prev.length - 1 && title.trim()) {
+        next.push({ id: `step-new-${Date.now()}`, title: '', completed: false })
+      }
+      return next
+    })
   }
 
   function updateStepDueDate(index: number, date: string) {
@@ -78,15 +89,48 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
     setEditSteps(prev => prev.filter((_, i) => i !== index))
   }
 
+  function handleStepDragStart(index: number) {
+    dragIndexRef.current = index
+  }
+
+  function handleStepDragOver(e: React.DragEvent, index: number) {
+    e.preventDefault()
+    setDragOverIndex(index)
+  }
+
+  function handleStepDrop(index: number) {
+    const from = dragIndexRef.current
+    if (from === null || from === index) {
+      dragIndexRef.current = null
+      setDragOverIndex(null)
+      return
+    }
+    setEditSteps(prev => {
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(index, 0, moved)
+      return next
+    })
+    dragIndexRef.current = null
+    setDragOverIndex(null)
+  }
+
+  function handleStepDragEnd() {
+    dragIndexRef.current = null
+    setDragOverIndex(null)
+  }
+
   function handleSave() {
     if (!editTitle.trim()) return
+    // Filter out empty trailing entries before saving
+    const filledSteps = editSteps.filter(s => s.title.trim())
     onEdit(task.id, {
       title: editTitle.trim(),
       description: editDescription.trim(),
       due_date: editDueDate || null,
       priority: editPriority,
       category: editCategory,
-      steps: editHasSteps && editSteps.length > 0 ? editSteps : null,
+      steps: editHasSteps && filledSteps.length > 0 ? filledSteps : null,
     })
     setEditing(false)
   }
@@ -123,59 +167,65 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
         {/* Steps editor */}
         {editHasSteps && (
         <div className="space-y-2 pl-2 border-l-2 border-sage-200">
-          {editSteps.map((step, i) => (
-            <div key={step.id} className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className={`text-xs w-5 text-right ${step.completed ? 'text-complete' : 'text-stone-400'}`}>
-                  {step.completed ? '✓' : `${i + 1}.`}
-                </span>
-                <input
-                  type="text"
-                  value={step.title}
-                  onChange={e => updateStepTitle(i, e.target.value)}
-                  className={`flex-1 px-2 py-1 rounded-lg border border-stone-200 bg-white text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition ${step.completed ? 'line-through text-stone-400' : ''}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeStep(i)}
-                  className="text-stone-300 hover:text-terracotta transition text-sm"
+          {editSteps.map((step, i) => {
+            const isFilled = step.title.trim() !== ''
+            const isLast = i === editSteps.length - 1
+            const filledSteps = editSteps.filter(s => s.title.trim())
+            return (
+              <div key={step.id} className="space-y-1">
+                <div
+                  className={`flex items-center gap-2 ${dragOverIndex === i && isFilled ? 'border-t-2 border-sage-400' : ''}`}
+                  onDragOver={isFilled ? (e) => handleStepDragOver(e, i) : undefined}
+                  onDrop={isFilled ? () => handleStepDrop(i) : undefined}
                 >
-                  &times;
-                </button>
+                  {isFilled ? (
+                    <span
+                      draggable
+                      onDragStart={() => handleStepDragStart(i)}
+                      onDragEnd={handleStepDragEnd}
+                      className={`text-sm w-5 text-center cursor-grab active:cursor-grabbing select-none ${step.completed ? 'text-complete' : 'text-stone-300 hover:text-stone-500'}`}
+                      title="Drag to reorder"
+                    >
+                      &#x2261;
+                    </span>
+                  ) : (
+                    <span className="text-xs text-stone-400 w-5 text-right">{filledSteps.length + 1}.</span>
+                  )}
+                  <input
+                    type="text"
+                    value={step.title}
+                    onChange={e => updateStepTitle(i, e.target.value)}
+                    className={`flex-1 px-2 py-1 rounded-lg border border-stone-200 text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition ${isLast && !isFilled ? 'bg-sage-50' : 'bg-white'} ${step.completed ? 'line-through text-stone-400' : ''}`}
+                    placeholder={isLast && !isFilled ? 'Add a step...' : ''}
+                  />
+                  {isFilled && (
+                    <button
+                      type="button"
+                      onClick={() => removeStep(i)}
+                      className="text-stone-300 hover:text-terracotta transition text-sm"
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
+                {isFilled && (
+                  <div className="flex items-center gap-2 pl-7">
+                    <input
+                      type="date"
+                      value={step.due_date ?? ''}
+                      onChange={e => updateStepDueDate(i, e.target.value)}
+                      className="px-1.5 py-0.5 rounded border border-stone-100 bg-white text-stone-500 text-[10px] focus:outline-none focus:ring-1 focus:ring-sage-300"
+                    />
+                    {!step.due_date && editDueDate && (() => {
+                      const defaults = calculateDefaultStepDates(filledSteps.length, editDueDate)
+                      const fi = filledSteps.indexOf(step)
+                      return fi >= 0 && defaults[fi] ? <span className="text-[10px] text-stone-300">{defaults[fi]}</span> : null
+                    })()}
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-2 pl-7">
-                <input
-                  type="date"
-                  value={step.due_date ?? ''}
-                  onChange={e => updateStepDueDate(i, e.target.value)}
-                  className="px-1.5 py-0.5 rounded border border-stone-100 bg-white text-stone-500 text-[10px] focus:outline-none focus:ring-1 focus:ring-sage-300"
-                />
-                {!step.due_date && editDueDate && (() => {
-                  const defaults = calculateDefaultStepDates(editSteps.length, editDueDate)
-                  return defaults[i] ? <span className="text-[10px] text-stone-300">{defaults[i]}</span> : null
-                })()}
-              </div>
-            </div>
-          ))}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-stone-400 w-5 text-right">{editSteps.length + 1}.</span>
-            <input
-              type="text"
-              value={newStepInput}
-              onChange={e => setNewStepInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addNewStep() } }}
-              className="flex-1 px-2 py-1 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition"
-              placeholder="Add a step..."
-            />
-            <button
-              type="button"
-              onClick={addNewStep}
-              disabled={!newStepInput.trim()}
-              className="text-sage-500 hover:text-sage-700 disabled:text-stone-300 transition text-lg font-medium"
-            >
-              +
-            </button>
-          </div>
+            )
+          })}
         </div>
         )}
 

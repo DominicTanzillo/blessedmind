@@ -1,9 +1,14 @@
-import { useState, useMemo, type FormEvent } from 'react'
+import { useState, useMemo, useRef, type FormEvent } from 'react'
 import { PRIORITIES, CATEGORIES } from '../../lib/constants'
 import { getBrainDumpMessage } from '../../lib/celebrations'
 import { playCapture } from '../../lib/sounds'
 import { calculateDefaultStepDates } from '../../lib/hydra'
 import type { NewTask, Step } from '../../types'
+
+interface StepEntry {
+  text: string
+  dueDate: string
+}
 
 interface Props {
   onAdd: (task: NewTask) => Promise<unknown>
@@ -24,11 +29,14 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
 
   // Steps (multi-step toggle)
   const [hasSteps, setHasSteps] = useState(false)
-  const [steps, setSteps] = useState<string[]>([''])
-  const [stepInput, setStepInput] = useState('')
-  const [stepDates, setStepDates] = useState<Record<number, string>>({})
+  const [steps, setSteps] = useState<StepEntry[]>([{ text: '', dueDate: '' }])
 
-  const filledStepCount = steps.filter(s => s.trim()).length
+  // Drag state
+  const dragIndexRef = useRef<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
+  const filledSteps = steps.filter(s => s.text.trim())
+  const filledStepCount = filledSteps.length
   const defaultStepDates = useMemo(
     () => dueDate && filledStepCount > 0
       ? calculateDefaultStepDates(filledStepCount, dueDate)
@@ -36,19 +44,54 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
     [dueDate, filledStepCount],
   )
 
-  function addStep() {
-    const text = stepInput.trim()
-    if (!text) return
-    setSteps(prev => [...prev.filter(s => s !== ''), text, ''])
-    setStepInput('')
-  }
-
   function removeStep(index: number) {
     setSteps(prev => prev.filter((_, i) => i !== index))
   }
 
-  function updateStep(index: number, value: string) {
-    setSteps(prev => prev.map((s, i) => (i === index ? value : s)))
+  function updateStepText(index: number, value: string) {
+    setSteps(prev => {
+      const next = prev.map((s, i) => (i === index ? { ...s, text: value } : s))
+      // If user is typing in the last entry and it now has text, add a new empty entry
+      if (index === prev.length - 1 && value.trim()) {
+        next.push({ text: '', dueDate: '' })
+      }
+      return next
+    })
+  }
+
+  function updateStepDate(index: number, value: string) {
+    setSteps(prev => prev.map((s, i) => (i === index ? { ...s, dueDate: value } : s)))
+  }
+
+  function handleDragStart(index: number) {
+    dragIndexRef.current = index
+  }
+
+  function handleDragOver(e: React.DragEvent, index: number) {
+    e.preventDefault()
+    setDragOverIndex(index)
+  }
+
+  function handleDrop(index: number) {
+    const from = dragIndexRef.current
+    if (from === null || from === index) {
+      dragIndexRef.current = null
+      setDragOverIndex(null)
+      return
+    }
+    setSteps(prev => {
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(index, 0, moved)
+      return next
+    })
+    dragIndexRef.current = null
+    setDragOverIndex(null)
+  }
+
+  function handleDragEnd() {
+    dragIndexRef.current = null
+    setDragOverIndex(null)
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -56,13 +99,13 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
     if (!title.trim()) return
     setSaving(true)
 
-    const filledSteps = steps.filter(s => s.trim())
-    const taskSteps: Step[] | null = hasSteps && filledSteps.length > 0
-      ? filledSteps.map((s, i) => ({
+    const filled = steps.filter(s => s.text.trim())
+    const taskSteps: Step[] | null = hasSteps && filled.length > 0
+      ? filled.map((s, i) => ({
           id: `step-${i}-${Date.now()}`,
-          title: s.trim(),
+          title: s.text.trim(),
           completed: false,
-          ...(stepDates[i] ? { due_date: stepDates[i] } : {}),
+          ...(s.dueDate ? { due_date: s.dueDate } : {}),
         }))
       : null
 
@@ -89,14 +132,19 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
     setPriority(2)
     setCategory('general')
     setHasSteps(false)
-    setSteps([''])
-    setStepInput('')
-    setStepDates({})
+    setSteps([{ text: '', dueDate: '' }])
 
     setTimeout(() => setJustSaved(false), 3000)
   }
 
   const totalCaptured = taskCount + savedCount
+
+  // Build a filled-step index for default dates (only filled steps get defaults)
+  let filledIndex = 0
+  const filledIndexMap: number[] = steps.map(s => {
+    if (s.text.trim()) return filledIndex++
+    return -1
+  })
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -139,63 +187,64 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
       {/* Steps builder */}
       {hasSteps && (
         <div className="space-y-2 pl-2 border-l-2 border-sage-200">
-          {steps.filter(s => s.trim()).map((step, i) => (
-            <div key={i} className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-stone-400 w-5 text-right">{i + 1}.</span>
-                <input
-                  type="text"
-                  value={step}
-                  onChange={e => updateStep(i, e.target.value)}
-                  className="flex-1 px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeStep(i)}
-                  className="text-stone-300 hover:text-terracotta transition text-sm"
+          {steps.map((step, i) => {
+            const isFilled = step.text.trim() !== ''
+            const isLast = i === steps.length - 1
+            const fi = filledIndexMap[i]
+
+            return (
+              <div key={i} className="space-y-1">
+                <div
+                  className={`flex items-center gap-2 ${dragOverIndex === i && isFilled ? 'border-t-2 border-sage-400' : ''}`}
+                  onDragOver={isFilled ? (e) => handleDragOver(e, i) : undefined}
+                  onDrop={isFilled ? () => handleDrop(i) : undefined}
                 >
-                  &times;
-                </button>
-              </div>
-              {dueDate && (
-                <div className="flex items-center gap-2 pl-7">
-                  {!stepDates[i] && defaultStepDates[i] && (
-                    <span className="text-[10px] text-stone-300">{defaultStepDates[i]}</span>
+                  {isFilled ? (
+                    <span
+                      draggable
+                      onDragStart={() => handleDragStart(i)}
+                      onDragEnd={handleDragEnd}
+                      className="text-stone-300 hover:text-stone-500 cursor-grab active:cursor-grabbing select-none text-sm w-5 text-center"
+                      title="Drag to reorder"
+                    >
+                      &#x2261;
+                    </span>
+                  ) : (
+                    <span className="text-xs text-stone-400 w-5 text-right">{filledStepCount + 1}.</span>
                   )}
                   <input
-                    type="date"
-                    value={stepDates[i] ?? ''}
-                    onChange={e => setStepDates(prev => {
-                      const next = { ...prev }
-                      if (e.target.value) next[i] = e.target.value
-                      else delete next[i]
-                      return next
-                    })}
-                    className="px-1.5 py-0.5 rounded border border-stone-100 bg-white text-stone-500 text-[10px] focus:outline-none focus:ring-1 focus:ring-sage-300"
+                    type="text"
+                    value={step.text}
+                    onChange={e => updateStepText(i, e.target.value)}
+                    className={`flex-1 px-3 py-1.5 rounded-lg border border-stone-200 text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition ${isLast && !isFilled ? 'bg-sage-50' : 'bg-white'}`}
+                    placeholder={isLast && !isFilled ? 'Add a step...' : ''}
                   />
+                  {isFilled && (
+                    <button
+                      type="button"
+                      onClick={() => removeStep(i)}
+                      className="text-stone-300 hover:text-terracotta transition text-sm"
+                    >
+                      &times;
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-stone-400 w-5 text-right">{steps.filter(s => s.trim()).length + 1}.</span>
-            <input
-              type="text"
-              value={stepInput}
-              onChange={e => setStepInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addStep() } }}
-              className="flex-1 px-3 py-1.5 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition"
-              placeholder="Add a step..."
-            />
-            <button
-              type="button"
-              onClick={addStep}
-              disabled={!stepInput.trim()}
-              className="text-sage-500 hover:text-sage-700 disabled:text-stone-300 transition text-lg font-medium"
-            >
-              +
-            </button>
-          </div>
+                {isFilled && dueDate && (
+                  <div className="flex items-center gap-2 pl-7">
+                    {!step.dueDate && fi >= 0 && defaultStepDates[fi] && (
+                      <span className="text-[10px] text-stone-300">{defaultStepDates[fi]}</span>
+                    )}
+                    <input
+                      type="date"
+                      value={step.dueDate}
+                      onChange={e => updateStepDate(i, e.target.value)}
+                      className="px-1.5 py-0.5 rounded border border-stone-100 bg-white text-stone-500 text-[10px] focus:outline-none focus:ring-1 focus:ring-sage-300"
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
           <p className="text-xs text-stone-400 pl-7">
             Steps show one at a time on the dashboard.
           </p>
