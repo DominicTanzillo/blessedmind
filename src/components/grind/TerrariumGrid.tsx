@@ -2,8 +2,10 @@ import { useMemo, useState, useCallback } from 'react'
 import PlantSVG from './PlantSVG'
 import BushSVG from './BushSVG'
 import WhiteRoseSVG from './WhiteRoseSVG'
+import TrophySVG from './TrophySVG'
+import AuditBouquetSVG from './AuditBouquetSVG'
 import { plantStage } from '../../hooks/useGrinds'
-import type { Grind, Pomodoro, PlantHealth } from '../../types'
+import type { Grind, Pomodoro, PlantHealth, Task, TimeAudit } from '../../types'
 
 const MIN_GRID = 8
 const CELL_SIZE = 44
@@ -15,8 +17,11 @@ function pomodoroStage(durationMinutes: number): 0 | 1 | 2 | 3 | 4 {
   return 1
 }
 
-function pomodoroColorVariant(index: number): number {
-  return index % 10
+/** Stable color from pomodoro ID so it never changes */
+function pomodoroColorFromId(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0
+  return ((h >>> 0) % 10)
 }
 
 /** Deterministic pseudo-random from cell coords */
@@ -30,11 +35,15 @@ function cellHash(r: number, c: number): number {
 type TooltipInfo =
   | { type: 'habit'; title: string; createdAt: string; streak: number; bestStreak: number; health: PlantHealth }
   | { type: 'pomodoro'; taskTitle: string; durationMinutes: number; completedAt: string }
+  | { type: 'trophy'; title: string; completedAt: string; stepCount: number }
+  | { type: 'audit'; completedAt: string; entryCount: number }
   | { type: 'prayer' }
 
 type CellContent =
   | { type: 'habit'; grind: Grind; corner: 'tl' | 'tr' | 'bl' | 'br'; health: PlantHealth }
   | { type: 'pomodoro'; pomodoro: Pomodoro; colorIndex: number }
+  | { type: 'trophy'; task: Task }
+  | { type: 'audit'; audit: TimeAudit }
   | { type: 'prayer'; title: string }
   | { type: 'empty' }
 
@@ -44,18 +53,24 @@ interface Props {
   pomodoros: Pomodoro[]
   prayerCount: number
   healthMap: Map<string, PlantHealth>
+  completedHydras?: Task[]
+  completedAudits?: TimeAudit[]
 }
 
-export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayerCount, healthMap }: Props) {
+export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayerCount, healthMap, completedHydras = [], completedAudits = [] }: Props) {
   const [tooltip, setTooltip] = useState<{ info: TooltipInfo; x: number; y: number } | null>(null)
 
   const { grid, gridSize, totalItems } = useMemo(() => {
-    const allHabits = [...grinds, ...retiredGrinds].slice(0, 4)
-    const total = allHabits.length * 4 + pomodoros.length + prayerCount
+    // Merge and sort all habits by creation date for stable positions
+    const allHabits = [...grinds, ...retiredGrinds]
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .slice(0, 4)
+    const total = allHabits.length * 4 + pomodoros.length + completedHydras.length + completedAudits.length + prayerCount
     let size = MIN_GRID
     while (size * size < total + 8) size += 2
 
     const center = size / 2
+    // Fixed habit positions — sorted by creation date, each always in the same quadrant
     const habitPositions: [number, number][] = [
       [center - 2, center - 2],
       [center - 2, center],
@@ -63,7 +78,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
       [center, center],
     ]
 
-    // Spiral order from center
+    // Spiral order from center — stable because offset from center is constant
     const spiralCells: [number, number][] = []
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
@@ -92,17 +107,43 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
       for (const [dr, dc] of [[0,0],[0,1],[1,0],[1,1]]) occupied.add(`${r+dr},${c+dc}`)
     })
 
-    // Place pomodoros (newest first, closest to center)
+    // Place pomodoros — oldest first so existing plants keep their positions
     const sorted = [...pomodoros].sort(
-      (a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime()
+      (a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime()
     )
     let pi = 0
     for (const [r, c] of spiralCells) {
       if (pi >= sorted.length) break
       if (occupied.has(`${r},${c}`)) continue
-      g[r][c] = { type: 'pomodoro', pomodoro: sorted[pi], colorIndex: pi }
+      g[r][c] = { type: 'pomodoro', pomodoro: sorted[pi], colorIndex: pomodoroColorFromId(sorted[pi].id) }
       occupied.add(`${r},${c}`)
       pi++
+    }
+
+    // Place trophies — completed hydra tasks
+    const sortedHydras = [...completedHydras].sort(
+      (a, b) => new Date(a.completed_at!).getTime() - new Date(b.completed_at!).getTime()
+    )
+    let ti = 0
+    for (const [r, c] of spiralCells) {
+      if (ti >= sortedHydras.length) break
+      if (occupied.has(`${r},${c}`)) continue
+      g[r][c] = { type: 'trophy', task: sortedHydras[ti] }
+      occupied.add(`${r},${c}`)
+      ti++
+    }
+
+    // Place audit bouquets
+    const sortedAudits = [...completedAudits].sort(
+      (a, b) => new Date(a.completed_at!).getTime() - new Date(b.completed_at!).getTime()
+    )
+    let ai = 0
+    for (const [r, c] of spiralCells) {
+      if (ai >= sortedAudits.length) break
+      if (occupied.has(`${r},${c}`)) continue
+      g[r][c] = { type: 'audit', audit: sortedAudits[ai] }
+      occupied.add(`${r},${c}`)
+      ai++
     }
 
     // Place prayer roses
@@ -116,7 +157,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
     }
 
     return { grid: g, gridSize: size, totalItems: total }
-  }, [grinds, retiredGrinds, pomodoros, prayerCount, healthMap])
+  }, [grinds, retiredGrinds, pomodoros, prayerCount, healthMap, completedHydras, completedAudits])
 
   const handlePlantClick = useCallback((info: TooltipInfo, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -316,7 +357,64 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                     transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
                     transformOrigin: '0 0',
                   }}>
-                    <BushSVG stage={stage} size={40} colorVariant={pomodoroColorVariant(cell.colorIndex)} />
+                    <BushSVG stage={stage} size={40} colorVariant={cell.colorIndex} />
+                  </div>
+                </div>
+              )
+            }
+
+            if (cell.type === 'trophy') {
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className="absolute cursor-pointer"
+                  style={{
+                    left: c * CELL_SIZE, top: r * CELL_SIZE,
+                    width: CELL_SIZE, height: CELL_SIZE,
+                    transformStyle: 'preserve-3d',
+                    zIndex: 3,
+                  }}
+                  onClick={(e) => handlePlantClick({
+                    type: 'trophy',
+                    title: cell.task.title,
+                    completedAt: cell.task.completed_at!,
+                    stepCount: cell.task.steps?.length ?? 0,
+                  }, e)}
+                >
+                  <div style={{
+                    position: 'absolute', left: '50%', top: '50%',
+                    transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
+                    transformOrigin: '0 0',
+                  }}>
+                    <TrophySVG size={36} />
+                  </div>
+                </div>
+              )
+            }
+
+            if (cell.type === 'audit') {
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className="absolute cursor-pointer"
+                  style={{
+                    left: c * CELL_SIZE, top: r * CELL_SIZE,
+                    width: CELL_SIZE, height: CELL_SIZE,
+                    transformStyle: 'preserve-3d',
+                    zIndex: 3,
+                  }}
+                  onClick={(e) => handlePlantClick({
+                    type: 'audit',
+                    completedAt: cell.audit.completed_at!,
+                    entryCount: cell.audit.entries.length,
+                  }, e)}
+                >
+                  <div style={{
+                    position: 'absolute', left: '50%', top: '50%',
+                    transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
+                    transformOrigin: '0 0',
+                  }}>
+                    <AuditBouquetSVG size={36} />
                   </div>
                 </div>
               )
@@ -431,6 +529,24 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                     </p>
                   </div>
                 )}
+                {tooltip.info.type === 'trophy' && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-stone-800">{tooltip.info.title}</p>
+                    <p className="text-xs text-stone-400">{tooltip.info.stepCount} steps conquered</p>
+                    <p className="text-xs text-stone-300">
+                      {new Date(tooltip.info.completedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+                {tooltip.info.type === 'audit' && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-stone-800">Time Audit</p>
+                    <p className="text-xs text-stone-400">{tooltip.info.entryCount} entries logged</p>
+                    <p className="text-xs text-stone-300">
+                      {new Date(tooltip.info.completedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
                 {tooltip.info.type === 'prayer' && (
                   <div>
                     <p className="text-sm font-medium text-stone-800">Prayer completed</p>
@@ -442,11 +558,14 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
         </div>
       </div>
 
-      {(pomodoros.length > 0 || prayerCount > 0) && (
+      {(pomodoros.length > 0 || prayerCount > 0 || completedHydras.length > 0 || completedAudits.length > 0) && (
         <p className="text-center text-[10px] text-stone-300">
-          {pomodoros.length > 0 && `${pomodoros.length} pomodoro${pomodoros.length !== 1 ? 's' : ''}`}
-          {pomodoros.length > 0 && prayerCount > 0 && ' · '}
-          {prayerCount > 0 && `${prayerCount} rose${prayerCount !== 1 ? 's' : ''}`}
+          {[
+            pomodoros.length > 0 && `${pomodoros.length} pomodoro${pomodoros.length !== 1 ? 's' : ''}`,
+            completedHydras.length > 0 && `${completedHydras.length} troph${completedHydras.length !== 1 ? 'ies' : 'y'}`,
+            completedAudits.length > 0 && `${completedAudits.length} audit${completedAudits.length !== 1 ? 's' : ''}`,
+            prayerCount > 0 && `${prayerCount} rose${prayerCount !== 1 ? 's' : ''}`,
+          ].filter(Boolean).join(' · ')}
         </p>
       )}
     </div>

@@ -1,10 +1,12 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { HashRouter, Routes, Route } from 'react-router'
 import { useAuth } from './hooks/useAuth'
 import { useTasks } from './hooks/useTasks'
 import { useActiveBatch } from './hooks/useActiveBatch'
 import { useGrinds } from './hooks/useGrinds'
 import { usePomodoro } from './hooks/usePomodoro'
+import { usePrayers } from './hooks/usePrayers'
+import { useTimeAudit } from './hooks/useTimeAudit'
 import PasswordGate from './components/auth/PasswordGate'
 import AppShell from './components/layout/AppShell'
 import DashboardView from './components/dashboard/DashboardView'
@@ -50,21 +52,25 @@ export default function App() {
     timerActive,
     timerTaskTitle,
     timerDuration,
+    timerColorVariant,
     remainingSeconds,
     startTimer,
     cancelTimer,
   } = usePomodoro()
 
-  const [prayerCount, setPrayerCount] = useState(() => {
-    try { return Number(localStorage.getItem('prayer-count') ?? '0') } catch { return 0 }
-  })
-  const handlePrayerComplete = useCallback(() => {
-    setPrayerCount(prev => {
-      const next = prev + 1
-      localStorage.setItem('prayer-count', String(next))
-      return next
-    })
-  }, [])
+  const { prayerCount, recordPrayer } = usePrayers()
+  const {
+    audits: completedAudits,
+    activeAudit,
+    currentBlock,
+    remainingSeconds: auditRemainingSeconds,
+    startAudit,
+    recordEntry,
+    completeAudit,
+    cancelAudit,
+  } = useTimeAudit(recordPrayer)
+
+  const completedHydras = tasks.filter(t => t.completed && t.steps && t.steps.length > 1)
 
   const [addModalOpen, setAddModalOpen] = useState(false)
 
@@ -152,6 +158,8 @@ export default function App() {
       onUncomplete={uncompleteGrind}
       pomodoros={pomodoros}
       prayerCount={prayerCount}
+      completedHydras={completedHydras}
+      completedAudits={completedAudits}
     />
   )
 
@@ -163,7 +171,18 @@ export default function App() {
           <Route path="inbox" element={inboxEl} />
           <Route path="waiting" element={waitingEl} />
           <Route path="grind" element={grindEl} />
-          <Route path="pray" element={<PrayerView onPrayerComplete={handlePrayerComplete} />} />
+          <Route path="pray" element={
+            <PrayerView
+              onPrayerComplete={recordPrayer}
+              activeAudit={activeAudit}
+              currentBlock={currentBlock}
+              remainingSeconds={auditRemainingSeconds}
+              onStartAudit={startAudit}
+              onRecordEntry={recordEntry}
+              onCompleteAudit={completeAudit}
+              onCancelAudit={cancelAudit}
+            />
+          } />
         </Route>
       </Routes>
 
@@ -172,6 +191,7 @@ export default function App() {
           taskTitle={timerTaskTitle}
           remainingSeconds={remainingSeconds}
           durationMinutes={timerDuration}
+          colorVariant={timerColorVariant}
           onCancel={cancelTimer}
         />
       )}

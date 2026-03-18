@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Badge from '../ui/Badge'
 import { PRIORITIES, CATEGORIES, CATEGORY_EMOJI } from '../../lib/constants'
 import { playComplete } from '../../lib/sounds'
+import { getEffectiveStepDueDate, calculateDefaultStepDates } from '../../lib/hydra'
 import type { Task, Step } from '../../types'
 import type { Category } from '../../lib/constants'
 
@@ -31,6 +32,7 @@ function formatRelativeDate(dateStr: string | null): string {
 
 export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEdit, onStar, onUnstar, onConvertToWaiting }: Props) {
   const [editing, setEditing] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
   const [editDescription, setEditDescription] = useState(task.description)
   const [editDueDate, setEditDueDate] = useState(task.due_date ?? '')
@@ -62,6 +64,12 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
 
   function updateStepTitle(index: number, title: string) {
     setEditSteps(prev => prev.map((s, i) => i === index ? { ...s, title } : s))
+  }
+
+  function updateStepDueDate(index: number, date: string) {
+    setEditSteps(prev => prev.map((s, i) =>
+      i === index ? { ...s, due_date: date || null } : s
+    ))
   }
 
   function removeStep(index: number) {
@@ -103,23 +111,37 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
         <div className="space-y-2 pl-2 border-l-2 border-sage-200">
           <p className="text-xs font-medium text-stone-500">Steps</p>
           {editSteps.map((step, i) => (
-            <div key={step.id} className="flex items-center gap-2">
-              <span className={`text-xs w-5 text-right ${step.completed ? 'text-complete' : 'text-stone-400'}`}>
-                {step.completed ? '✓' : `${i + 1}.`}
-              </span>
-              <input
-                type="text"
-                value={step.title}
-                onChange={e => updateStepTitle(i, e.target.value)}
-                className={`flex-1 px-2 py-1 rounded-lg border border-stone-200 bg-white text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition ${step.completed ? 'line-through text-stone-400' : ''}`}
-              />
-              <button
-                type="button"
-                onClick={() => removeStep(i)}
-                className="text-stone-300 hover:text-terracotta transition text-sm"
-              >
-                &times;
-              </button>
+            <div key={step.id} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className={`text-xs w-5 text-right ${step.completed ? 'text-complete' : 'text-stone-400'}`}>
+                  {step.completed ? '✓' : `${i + 1}.`}
+                </span>
+                <input
+                  type="text"
+                  value={step.title}
+                  onChange={e => updateStepTitle(i, e.target.value)}
+                  className={`flex-1 px-2 py-1 rounded-lg border border-stone-200 bg-white text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition ${step.completed ? 'line-through text-stone-400' : ''}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeStep(i)}
+                  className="text-stone-300 hover:text-terracotta transition text-sm"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="flex items-center gap-2 pl-7">
+                <input
+                  type="date"
+                  value={step.due_date ?? ''}
+                  onChange={e => updateStepDueDate(i, e.target.value)}
+                  className="px-1.5 py-0.5 rounded border border-stone-100 bg-white text-stone-500 text-[10px] focus:outline-none focus:ring-1 focus:ring-sage-300"
+                />
+                {!step.due_date && editDueDate && (() => {
+                  const defaults = calculateDefaultStepDates(editSteps.length, editDueDate)
+                  return defaults[i] ? <span className="text-[10px] text-stone-300">{defaults[i]}</span> : null
+                })()}
+              </div>
             </div>
           ))}
           <div className="flex items-center gap-2">
@@ -217,9 +239,19 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
             <Badge className={priorityInfo.color}>{priorityInfo.label}</Badge>
           )}
           {task.steps && task.steps.length > 0 && (
-            <span className="text-xs text-stone-400">
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
+              className="flex items-center gap-1 text-xs text-stone-400 hover:text-sage-600 transition"
+            >
+              <svg className={`w-3 h-3 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
               {task.steps.filter(s => s.completed).length}/{task.steps.length} steps
-            </span>
+              {task.steps.length > 1 && (() => {
+                const eff = getEffectiveStepDueDate(task)
+                return eff.date ? <span className={eff.isDefault ? 'text-stone-300' : ''}> · step due {eff.date}</span> : null
+              })()}
+            </button>
           )}
           {task.due_date && (
             <span className={`text-xs ${
@@ -229,6 +261,33 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
             </span>
           )}
         </div>
+        {/* Expanded steps list */}
+        {expanded && task.steps && task.steps.length > 0 && (
+          <div className="mt-2 pl-1 space-y-1">
+            {task.steps.map((step, i) => {
+              const defaults = task.due_date && task.steps!.length > 1
+                ? calculateDefaultStepDates(task.steps!.length, task.due_date)
+                : []
+              const stepDate = step.due_date ?? defaults[i] ?? null
+              const isDefault = !step.due_date && !!defaults[i]
+              return (
+                <div key={step.id} className="flex items-center gap-2 text-xs">
+                  <span className={step.completed ? 'text-complete' : 'text-stone-400'}>
+                    {step.completed ? '✓' : `${i + 1}.`}
+                  </span>
+                  <span className={step.completed ? 'line-through text-stone-400' : 'text-stone-600'}>
+                    {step.title}
+                  </span>
+                  {stepDate && (
+                    <span className={`ml-auto ${isDefault ? 'text-stone-300' : 'text-stone-400'}`}>
+                      {stepDate}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Action buttons - pinned star always visible, rest on hover */}

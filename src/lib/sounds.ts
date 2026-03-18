@@ -228,6 +228,30 @@ export function playGrindComplete(streak: number) {
   } catch { /* silent fallback */ }
 }
 
+/**
+ * Audit ping – bright attention chime. Two ascending notes (E5→A5).
+ * Distinct from step/complete sounds, slightly longer (~500ms).
+ */
+export function playAuditPing() {
+  try {
+    const c = getCtx()
+    const t = c.currentTime
+
+    // E5 — clear first note
+    tone(659.25, 'sine', 0.3, t, 0.12, c.destination)
+    tone(659.25, 'triangle', 0.2, t, 0.04, c.destination) // shimmer
+
+    // A5 — ascending resolution
+    tone(880, 'sine', 0.35, t + 0.15, 0.10, c.destination)
+    tone(880, 'triangle', 0.25, t + 0.15, 0.035, c.destination)
+
+    // Soft tail
+    tone(1760, 'sine', 0.2, t + 0.3, 0.015, c.destination)
+
+    haptic(35)
+  } catch { /* silent fallback */ }
+}
+
 // ── Haptic (mobile) ────────────────────────────────────────
 
 export function haptic(ms: number) {

@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useMemo, type FormEvent } from 'react'
 import { PRIORITIES, CATEGORIES } from '../../lib/constants'
 import { getBrainDumpMessage } from '../../lib/celebrations'
 import { playCapture } from '../../lib/sounds'
+import { calculateDefaultStepDates } from '../../lib/hydra'
 import type { NewTask, Step } from '../../types'
 
 interface Props {
@@ -25,6 +26,15 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
   const [hasSteps, setHasSteps] = useState(false)
   const [steps, setSteps] = useState<string[]>([''])
   const [stepInput, setStepInput] = useState('')
+  const [stepDates, setStepDates] = useState<Record<number, string>>({})
+
+  const filledStepCount = steps.filter(s => s.trim()).length
+  const defaultStepDates = useMemo(
+    () => dueDate && filledStepCount > 0
+      ? calculateDefaultStepDates(filledStepCount, dueDate)
+      : [],
+    [dueDate, filledStepCount],
+  )
 
   function addStep() {
     const text = stepInput.trim()
@@ -48,7 +58,12 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
 
     const filledSteps = steps.filter(s => s.trim())
     const taskSteps: Step[] | null = hasSteps && filledSteps.length > 0
-      ? filledSteps.map((s, i) => ({ id: `step-${i}-${Date.now()}`, title: s.trim(), completed: false }))
+      ? filledSteps.map((s, i) => ({
+          id: `step-${i}-${Date.now()}`,
+          title: s.trim(),
+          completed: false,
+          ...(stepDates[i] ? { due_date: stepDates[i] } : {}),
+        }))
       : null
 
     await onAdd({
@@ -76,6 +91,7 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
     setHasSteps(false)
     setSteps([''])
     setStepInput('')
+    setStepDates({})
 
     setTimeout(() => setJustSaved(false), 3000)
   }
@@ -124,21 +140,41 @@ export default function AddTaskForm({ onAdd, onClose, taskCount }: Props) {
       {hasSteps && (
         <div className="space-y-2 pl-2 border-l-2 border-sage-200">
           {steps.filter(s => s.trim()).map((step, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="text-xs text-stone-400 w-5 text-right">{i + 1}.</span>
-              <input
-                type="text"
-                value={step}
-                onChange={e => updateStep(i, e.target.value)}
-                className="flex-1 px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition"
-              />
-              <button
-                type="button"
-                onClick={() => removeStep(i)}
-                className="text-stone-300 hover:text-terracotta transition text-sm"
-              >
-                &times;
-              </button>
+            <div key={i} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-stone-400 w-5 text-right">{i + 1}.</span>
+                <input
+                  type="text"
+                  value={step}
+                  onChange={e => updateStep(i, e.target.value)}
+                  className="flex-1 px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeStep(i)}
+                  className="text-stone-300 hover:text-terracotta transition text-sm"
+                >
+                  &times;
+                </button>
+              </div>
+              {dueDate && (
+                <div className="flex items-center gap-2 pl-7">
+                  {!stepDates[i] && defaultStepDates[i] && (
+                    <span className="text-[10px] text-stone-300">{defaultStepDates[i]}</span>
+                  )}
+                  <input
+                    type="date"
+                    value={stepDates[i] ?? ''}
+                    onChange={e => setStepDates(prev => {
+                      const next = { ...prev }
+                      if (e.target.value) next[i] = e.target.value
+                      else delete next[i]
+                      return next
+                    })}
+                    className="px-1.5 py-0.5 rounded border border-stone-100 bg-white text-stone-500 text-[10px] focus:outline-none focus:ring-1 focus:ring-sage-300"
+                  />
+                </div>
+              )}
             </div>
           ))}
           <div className="flex items-center gap-2">

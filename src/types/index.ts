@@ -2,6 +2,21 @@ export interface Step {
   id: string
   title: string
   completed: boolean
+  due_date?: string | null  // YYYY-MM-DD, optional override
+}
+
+export interface AuditEntry {
+  block: number        // 1-32
+  note: string
+  recorded_at: string
+}
+
+export interface TimeAudit {
+  id: string
+  started_at: string
+  completed_at: string | null
+  entries: AuditEntry[]
+  created_at: string
 }
 
 export interface Task {

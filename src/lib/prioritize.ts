@@ -1,4 +1,5 @@
 import type { Task } from '../types'
+import { getEffectiveStepDueDate } from './hydra'
 
 /**
  * Score a task for prioritization. Lower score = higher priority.
@@ -16,9 +17,15 @@ export function scoreTask(task: Task): number {
   const now = new Date()
   now.setHours(0, 0, 0, 0)
 
+  // For hydra tasks (multi-step), use the effective step due date
+  const isHydra = task.steps && task.steps.length > 1
+  const effectiveDueDate = isHydra
+    ? getEffectiveStepDueDate(task).date
+    : task.due_date
+
   // ── Due date factor (primary driver) ──────────────────
-  if (task.due_date) {
-    const due = new Date(task.due_date + 'T00:00:00')
+  if (effectiveDueDate) {
+    const due = new Date(effectiveDueDate + 'T00:00:00')
     const daysUntil = Math.floor((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
     if (daysUntil < 0) {
@@ -44,6 +51,9 @@ export function scoreTask(task: Task): number {
     // No due date — moderate baseline, let priority + age decide
     score += 40
   }
+
+  // Small bonus for hydra sub-tasks to spread load vs competing regular tasks
+  if (isHydra) score -= 3
 
   // ── Priority factor ───────────────────────────────────
   if (task.priority === 1) score += -10  // Urgent gets a boost

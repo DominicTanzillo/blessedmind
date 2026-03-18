@@ -4,6 +4,7 @@ import PomodoroButton from '../pomodoro/PomodoroButton'
 import { PRIORITIES, CATEGORY_EMOJI } from '../../lib/constants'
 import { getCompletionMessage, shouldShowInsight } from '../../lib/celebrations'
 import { playComplete, playStepComplete } from '../../lib/sounds'
+import { getEffectiveStepDueDate } from '../../lib/hydra'
 import type { Task } from '../../types'
 import type { Category } from '../../lib/constants'
 
@@ -50,7 +51,9 @@ export default function TaskCard({ task, onComplete, onUncomplete, onCompleteSte
 
   const priorityInfo = PRIORITIES.find(p => p.value === task.priority)
   const emoji = CATEGORY_EMOJI[task.category as Category] ?? '📋'
-  const dateText = formatRelativeDate(task.due_date)
+  const isHydra = task.steps && task.steps.length > 1
+  const effectiveDue = isHydra ? getEffectiveStepDueDate(task) : { date: task.due_date, isDefault: false }
+  const dateText = formatRelativeDate(effectiveDue.date)
   const isOverdue = dateText.includes('overdue')
 
   // Multi-step logic
@@ -221,7 +224,7 @@ export default function TaskCard({ task, onComplete, onUncomplete, onCompleteSte
               {priorityInfo && (
                 <Badge className={priorityInfo.color}>{priorityInfo.label}</Badge>
               )}
-              <span className={`text-xs ${isOverdue ? 'text-terracotta font-medium' : 'text-stone-400'}`}>
+              <span className={`text-xs ${isOverdue ? 'text-terracotta font-medium' : effectiveDue.isDefault ? 'text-stone-300' : 'text-stone-400'}`}>
                 {dateText}
               </span>
               {onStartPomodoro && (

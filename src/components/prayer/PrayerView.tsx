@@ -1,14 +1,24 @@
 import { useState } from 'react'
 import PrayerPlayer from './PrayerPlayer'
+import TimeAuditView from './TimeAuditView'
 import { PRAYERS } from '../../lib/prayers'
 import type { Prayer } from '../../lib/prayers'
+import type { TimeAudit } from '../../types'
 
 interface Props {
   onPrayerComplete?: () => void
+  activeAudit?: TimeAudit | null
+  currentBlock?: number
+  remainingSeconds?: number
+  onStartAudit?: () => void
+  onRecordEntry?: (note: string) => void
+  onCompleteAudit?: () => void
+  onCancelAudit?: () => void
 }
 
-export default function PrayerView({ onPrayerComplete }: Props) {
+export default function PrayerView({ onPrayerComplete, activeAudit, currentBlock = 0, remainingSeconds = 0, onStartAudit, onRecordEntry, onCompleteAudit, onCancelAudit }: Props) {
   const [activePrayer, setActivePrayer] = useState<Prayer | null>(null)
+  const [showAudit, setShowAudit] = useState(false)
 
   // Starred prayers first
   const sorted = [...PRAYERS].sort((a, b) => {
@@ -18,6 +28,20 @@ export default function PrayerView({ onPrayerComplete }: Props) {
 
   if (activePrayer) {
     return <PrayerPlayer prayer={activePrayer} onBack={() => setActivePrayer(null)} onComplete={onPrayerComplete} />
+  }
+
+  if (showAudit && activeAudit && onRecordEntry && onCompleteAudit && onCancelAudit) {
+    return (
+      <TimeAuditView
+        activeAudit={activeAudit}
+        currentBlock={currentBlock}
+        remainingSeconds={remainingSeconds}
+        onRecord={onRecordEntry}
+        onComplete={() => { onCompleteAudit(); setShowAudit(false) }}
+        onCancel={() => { onCancelAudit(); setShowAudit(false) }}
+        onBack={() => setShowAudit(false)}
+      />
+    )
   }
 
   return (
@@ -65,6 +89,47 @@ export default function PrayerView({ onPrayerComplete }: Props) {
             </div>
           </button>
         ))}
+
+        {/* Time Audit card */}
+        {onStartAudit && (
+          <button
+            onClick={() => {
+              if (activeAudit) {
+                setShowAudit(true)
+              } else {
+                onStartAudit()
+                setShowAudit(true)
+              }
+            }}
+            className="w-full text-left rounded-2xl border border-stone-300 bg-gradient-to-r from-stone-50 to-white p-5 hover:shadow-md hover:border-stone-400 transition-all duration-300"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-stone-800">Time Audit</p>
+                <p className="text-xs text-stone-400 mt-0.5">8-hour work day audit — 15-minute blocks</p>
+                {activeAudit && (
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sage-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-sage-500" />
+                    </span>
+                    <span className="text-xs text-sage-600 font-medium">
+                      In progress — Block {currentBlock} of 32
+                    </span>
+                  </div>
+                )}
+              </div>
+              <svg className="w-5 h-5 text-stone-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </button>
+        )}
       </div>
     </div>
   )

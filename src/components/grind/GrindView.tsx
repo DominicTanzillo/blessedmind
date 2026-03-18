@@ -4,7 +4,7 @@ import AddGrindForm from './AddGrindForm'
 import TerrariumGrid from './TerrariumGrid'
 import Modal from '../ui/Modal'
 import { plantStage, STAGE_NAMES } from '../../hooks/useGrinds'
-import type { Grind, NewGrind, PlantHealth, Pomodoro } from '../../types'
+import type { Grind, NewGrind, PlantHealth, Pomodoro, Task, TimeAudit } from '../../types'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -40,9 +40,11 @@ interface Props {
   onUncomplete: (id: string) => void
   pomodoros: Pomodoro[]
   prayerCount: number
+  completedHydras?: Task[]
+  completedAudits?: TimeAudit[]
 }
 
-export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onDelete, onUpdate, onRetire, onReactivate, onUncomplete, pomodoros, prayerCount }: Props) {
+export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onDelete, onUpdate, onRetire, onReactivate, onUncomplete, pomodoros, prayerCount, completedHydras = [], completedAudits = [] }: Props) {
   const [addOpen, setAddOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedRetiredId, setSelectedRetiredId] = useState<string | null>(null)
@@ -133,7 +135,7 @@ export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onD
 
       {/* Terrarium Grid */}
       {(grinds.length > 0 || retiredGrinds.length > 0 || pomodoros.length > 0) && (
-        <TerrariumGrid grinds={grinds} retiredGrinds={retiredGrinds} pomodoros={pomodoros} prayerCount={prayerCount} healthMap={healthMap} />
+        <TerrariumGrid grinds={grinds} retiredGrinds={retiredGrinds} pomodoros={pomodoros} prayerCount={prayerCount} healthMap={healthMap} completedHydras={completedHydras} completedAudits={completedAudits} />
       )}
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Plant a Seed">
