@@ -21,9 +21,7 @@ export function useFocusBatch(tasks: Item[]) {
     setLoading(false)
   }, [])
 
-  useEffect(() => {
-    fetchBatch()
-  }, [fetchBatch])
+  useEffect(() => { fetchBatch() }, [fetchBatch])
 
   // ── Realtime subscription ──────────────────────────────
   useEffect(() => {
@@ -46,9 +44,12 @@ export function useFocusBatch(tasks: Item[]) {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  // Get the tasks in the current batch — exclude waiting tasks
+  // Lookup map for fast ID resolution
+  const taskMap = new Map(tasks.map(t => [t.id, t]))
+
+  // Get the tasks in the current batch
   const batchTasks = batch
-    ? tasks.filter(t => batch.item_ids.includes(t.id) && !t.waiting)
+    ? batch.item_ids.map(id => taskMap.get(id)).filter((t): t is Item => !!t && !t.waiting)
     : []
 
   const completedInBatch = batchTasks.filter(t => t.completed).length
@@ -69,7 +70,7 @@ export function useFocusBatch(tasks: Item[]) {
     if (data) setBatch(data as FocusBatch)
   }
 
-  // Create a new batch from the top-ranked tasks (full refresh)
+  // Create a new batch from the top-ranked items
   const generateNewBatch = useCallback(async () => {
     if (generatingRef.current) return
     generatingRef.current = true
@@ -91,64 +92,31 @@ export function useFocusBatch(tasks: Item[]) {
     }
   }, [tasks, batch?.id])
 
-  // Initialize batch if none exists
+  // Initialize or regenerate batch if none exists or batch is stale
+  // (stale = batch IDs don't match any known items, e.g. after migration)
   useEffect(() => {
-    if (!loading && !batch && tasks.filter(t => !t.completed && !t.waiting).length > 0) {
+    if (loading || tasks.length === 0) return
+
+    if (!batch) {
+      // No batch — generate if there are incomplete items
+      if (tasks.filter(t => !t.completed && !t.waiting).length > 0) {
+        generateNewBatch()
+      }
+      return
+    }
+
+    // Stale batch detection: if none of the batch IDs resolve to items, regenerate
+    const resolved = batch.item_ids.filter(id => taskMap.has(id))
+    if (resolved.length === 0 && tasks.filter(t => !t.completed && !t.waiting).length > 0) {
       generateNewBatch()
     }
   }, [loading, batch, tasks, generateNewBatch])
 
-  // Auto-refresh batch when ALL batch tasks are completed
-  useEffect(() => {
-    if (!loading && batch && allCompleted) {
-      const incompleteCount = tasks.filter(t => !t.completed && !t.waiting).length
-      if (incompleteCount > 0) {
-        generateNewBatch()
-      }
-    }
-  }, [loading, batch, allCompleted, tasks, generateNewBatch])
-
-  // On load, if the batch contains tasks that are now completed,
-  // swap them out for fresh incomplete tasks
-  const hasRefreshedRef = useRef(false)
-  useEffect(() => {
-    if (loading || !batch || hasRefreshedRef.current) return
-    if (tasks.length === 0) return
-    hasRefreshedRef.current = true
-
-    const incompleteBatchTasks = batchTasks.filter(t => !t.completed)
-
-    if (incompleteBatchTasks.length < BATCH_SIZE && completedInBatch > 0) {
-      const ranked = rankTasks(tasks)
-      const currentIds = new Set(incompleteBatchTasks.map(t => t.id))
-      const newTasks = ranked.filter(t => !currentIds.has(t.id))
-      const slotsToFill = BATCH_SIZE - incompleteBatchTasks.length
-      const fillIds = newTasks.slice(0, slotsToFill).map(t => t.id)
-      const newBatchIds = [...incompleteBatchTasks.map(t => t.id), ...fillIds]
-
-      if (fillIds.length > 0) {
-        saveBatch(newBatchIds, batch.id)
-      }
-    }
-  }, [loading, batch, tasks, batchTasks, completedInBatch])
-
-  // Refresh batch when tasks are edited
+  // Refresh batch when explicitly requested (edit or reprioritize)
   const refreshBatch = useCallback(async () => {
     if (!batch) return
-
-    const completedIds = batchTasks.filter(t => t.completed).map(t => t.id)
-    const incompleteSlots = BATCH_SIZE - completedIds.length
-
-    if (incompleteSlots <= 0) return
-
-    const ranked = rankTasks(tasks)
-    const completedSet = new Set(completedIds)
-    const newIncomplete = ranked.filter(t => !completedSet.has(t.id))
-    const fillIds = newIncomplete.slice(0, incompleteSlots).map(t => t.id)
-    const newBatchIds = [...completedIds, ...fillIds]
-
-    await saveBatch(newBatchIds, batch.id)
-  }, [batch, batchTasks, tasks])
+    await generateNewBatch()
+  }, [batch, generateNewBatch])
 
   return {
     batchTasks,
@@ -162,5 +130,4 @@ export function useFocusBatch(tasks: Item[]) {
   }
 }
 
-// Backward compat alias
 export const useActiveBatch = useFocusBatch

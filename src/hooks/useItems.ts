@@ -220,59 +220,66 @@ export function useItems() {
   }, [rawItems, fetchItems])
 
   // ── Complete item (works for both tasks and steps) ────────
+  // Optimistic update — no refetch, no stutter.
   // If completing a step, auto-completes parent when all siblings done.
   const completeTask = useCallback(async (id: string) => {
     const now = new Date().toISOString()
     const item = rawItems.find(i => i.id === id)
 
-    await supabase.from('items').update({
-      completed: true,
-      completed_at: now,
-      updated_at: now,
-    }).eq('id', id)
-
-    // If this is a step, check if all siblings are done → auto-complete parent
+    // Optimistic: update local state immediately
+    const idsToComplete = [id]
     if (item?.parent_id) {
       const siblings = rawItems.filter(i => i.parent_id === item.parent_id)
       const allDone = siblings.every(s => s.id === id || s.completed)
-      if (allDone) {
-        await supabase.from('items').update({
-          completed: true,
-          completed_at: now,
-          updated_at: now,
-        }).eq('id', item.parent_id)
-      }
+      if (allDone) idsToComplete.push(item.parent_id)
     }
+    setRawItems(prev => prev.map(i =>
+      idsToComplete.includes(i.id)
+        ? { ...i, completed: true, completed_at: now, updated_at: now }
+        : i
+    ))
 
-    await fetchItems()
-  }, [rawItems, fetchItems])
+    // Persist to DB
+    await supabase.from('items').update({
+      completed: true, completed_at: now, updated_at: now,
+    }).eq('id', id)
+
+    if (idsToComplete.length > 1) {
+      await supabase.from('items').update({
+        completed: true, completed_at: now, updated_at: now,
+      }).eq('id', idsToComplete[1])
+    }
+  }, [rawItems])
 
   // ── Uncomplete item ──────────────────────────────────────
-  // If uncompleting a step whose parent was auto-completed, uncomplete parent too.
+  // Optimistic update. If uncompleting a step whose parent was auto-completed, uncomplete parent too.
   const uncompleteTask = useCallback(async (id: string) => {
     const now = new Date().toISOString()
     const item = rawItems.find(i => i.id === id)
 
-    await supabase.from('items').update({
-      completed: false,
-      completed_at: null,
-      updated_at: now,
-    }).eq('id', id)
-
-    // If this is a step and parent was auto-completed, uncomplete parent
+    // Optimistic: update local state immediately
+    const idsToUncomplete = [id]
     if (item?.parent_id) {
       const parent = rawItems.find(i => i.id === item.parent_id)
-      if (parent?.completed) {
-        await supabase.from('items').update({
-          completed: false,
-          completed_at: null,
-          updated_at: now,
-        }).eq('id', item.parent_id)
-      }
+      if (parent?.completed) idsToUncomplete.push(item.parent_id)
     }
+    setRawItems(prev => prev.map(i =>
+      idsToUncomplete.includes(i.id)
+        ? { ...i, completed: false, completed_at: null, updated_at: now }
+        : i
+    ))
 
-    await fetchItems()
-  }, [rawItems, fetchItems])
+    // Persist to DB
+    await supabase.from('items').update({
+      completed: false, completed_at: null, updated_at: now,
+    }).eq('id', id)
+
+    if (idsToUncomplete.length > 1) {
+      await supabase.from('items').update({
+        completed: false, completed_at: null, updated_at: now,
+      }).eq('id', idsToUncomplete[1])
+    }
+  }, [rawItems])
 
   // ── Delete item ──────────────────────────────────────────
   const deleteTask = useCallback(async (id: string) => {
