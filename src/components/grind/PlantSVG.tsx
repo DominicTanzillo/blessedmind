@@ -8,169 +8,175 @@ interface Props {
 }
 
 interface Palette {
+  soil: string
   stem: string
   leaf: string
   leafLight: string
+  leafShadow: string
   flower: string
   center: string
   trunk: string
-  canopyDark: string
+  canopy: string
   canopyLight: string
+  canopyShadow: string
 }
 
+// Harmonious palettes — muted, natural, calming
 const PALETTES: Palette[] = [
-  // 0 - Sage (default)
-  { stem: '#788764', leaf: '#95a383', leafLight: '#b3bda3', flower: '#e8b4a8', center: '#c97b6b', trunk: '#4a5440', canopyDark: '#788764', canopyLight: '#95a383' },
-  // 1 - Teal
-  { stem: '#4a7c6f', leaf: '#6b9e8a', leafLight: '#8ebba8', flower: '#a8d4e8', center: '#5ba3c9', trunk: '#3a5e54', canopyDark: '#4a7c6f', canopyLight: '#6b9e8a' },
-  // 2 - Lavender
-  { stem: '#6b5e7a', leaf: '#8e83a3', leafLight: '#a89ebb', flower: '#d4b4e8', center: '#9b6bc9', trunk: '#524660', canopyDark: '#6b5e7a', canopyLight: '#8e83a3' },
-  // 3 - Golden
-  { stem: '#7a6b4a', leaf: '#a39566', leafLight: '#bfb183', flower: '#e8d4a8', center: '#c9a36b', trunk: '#5e5238', canopyDark: '#7a6b4a', canopyLight: '#a39566' },
-  // 4 - Rose
-  { stem: '#7a4a5e', leaf: '#a36683', leafLight: '#bb839e', flower: '#e8a8c4', center: '#c96b8e', trunk: '#5e3848', canopyDark: '#7a4a5e', canopyLight: '#a36683' },
+  // 0 - Sage (default) — the heart of the app
+  { soil: '#a89878', stem: '#7a8a6a', leaf: '#8fa37d', leafLight: '#a8b898', leafShadow: '#6b7d5e',
+    flower: '#dcc0b0', center: '#c49a85', trunk: '#5e6850', canopy: '#7d9070', canopyLight: '#98ab8a', canopyShadow: '#647558' },
+  // 1 - Seafoam — cool and contemplative
+  { soil: '#8a9488', stem: '#5a7a70', leaf: '#6d9585', leafLight: '#88ada0', leafShadow: '#4a6a5e',
+    flower: '#b0d0d0', center: '#7aadad', trunk: '#486058', canopy: '#5e8878', canopyLight: '#78a295', canopyShadow: '#4a705e' },
+  // 2 - Lavender — soft and spiritual
+  { soil: '#9a9098', stem: '#6a6078', leaf: '#807598', leafLight: '#9a90ad', leafShadow: '#5a5068',
+    flower: '#c8b8d8', center: '#9880b0', trunk: '#554a62', canopy: '#706580', canopyLight: '#8a80a0', canopyShadow: '#5a4e6a' },
+  // 3 - Amber — warm and grounding
+  { soil: '#a89070', stem: '#7a7050', leaf: '#908058', leafLight: '#a8986e', leafShadow: '#686048',
+    flower: '#dcc8a0', center: '#c0a070', trunk: '#605840', canopy: '#7a7048', canopyLight: '#95885e', canopyShadow: '#605838' },
+  // 4 - Rose — gentle warmth
+  { soil: '#a08880', stem: '#785a60', leaf: '#907078', leafLight: '#a88890', leafShadow: '#685058',
+    flower: '#d8b0b8', center: '#c08890', trunk: '#5e4448', canopy: '#7a6068', canopyLight: '#957880', canopyShadow: '#604850' },
 ]
 
 const SIZES = { sm: 48, md: 80, lg: 120 }
 
-const HEALTH_CLASSES: Record<PlantHealth, string> = {
-  healthy: '',
-  wilting: 'plant-wilting',
-  sick: 'plant-sick',
-  withered: 'plant-withered',
-}
-
-const DROOP_DEGREES: Record<PlantHealth, number> = {
-  healthy: 0,
-  wilting: 3,
-  sick: 5,
-  withered: 8,
+const DROOP: Record<PlantHealth, number> = {
+  healthy: 0, wilting: 3, sick: 5, withered: 8,
 }
 
 export default function PlantSVG({ stage, size = 'md', colorVariant = 0, health = 'healthy' }: Props) {
   const s = SIZES[size]
-  const vb = '0 0 48 48'
-  const p = PALETTES[colorVariant] ?? PALETTES[0]
-  const healthClass = HEALTH_CLASSES[health]
-  const filterId = health !== 'healthy' ? `health-${health}` : undefined
-
-  // Lean direction based on color variant: even = right, odd = left
-  const direction = colorVariant % 2 === 0 ? 1 : -1
-  const droopDeg = DROOP_DEGREES[health]
-  const droopStyle = droopDeg > 0
-    ? { transform: `rotate(${droopDeg * direction}deg)`, transformOrigin: '24px 42px' } as React.CSSProperties
+  const p = PALETTES[colorVariant % PALETTES.length]
+  const filterId = health !== 'healthy' ? `health-${health}-${colorVariant}` : undefined
+  const dir = colorVariant % 2 === 0 ? 1 : -1
+  const droop = DROOP[health]
+  const droopStyle = droop > 0
+    ? { transform: `rotate(${droop * dir}deg)`, transformOrigin: '24px 44px' } as React.CSSProperties
     : undefined
 
   return (
-    <svg
-      width={s}
-      height={s}
-      viewBox={vb}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="animate-plant-grow"
-    >
+    <svg width={s} height={s} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="animate-plant-grow">
       {filterId && (
         <defs>
-          {health === 'wilting' && (
-            <filter id={filterId}>
-              <feColorMatrix type="saturate" values="0.75" />
-            </filter>
-          )}
-          {health === 'sick' && (
-            <filter id={filterId}>
-              <feColorMatrix type="saturate" values="0.45" />
-              <feColorMatrix type="matrix" values="1.1 0.1 0 0 0.05  0.05 1.05 0 0 0.03  0 0 0.85 0 0  0 0 0 1 0" />
-            </filter>
-          )}
-          {health === 'withered' && (
-            <filter id={filterId}>
-              <feColorMatrix type="saturate" values="0.2" />
-              <feColorMatrix type="matrix" values="1.15 0.15 0 0 0.08  0.1 1.0 0 0 0.04  0 0 0.7 0 0  0 0 0 1 0" />
-            </filter>
-          )}
+          {health === 'wilting' && <filter id={filterId}><feColorMatrix type="saturate" values="0.7" /></filter>}
+          {health === 'sick' && <filter id={filterId}><feColorMatrix type="saturate" values="0.4" /><feColorMatrix type="matrix" values="1.1 0.1 0 0 0.05  0.05 1.05 0 0 0.03  0 0 0.85 0 0  0 0 0 1 0" /></filter>}
+          {health === 'withered' && <filter id={filterId}><feColorMatrix type="saturate" values="0.15" /><feColorMatrix type="matrix" values="1.1 0.15 0 0 0.08  0.1 1.0 0 0 0.04  0 0 0.7 0 0  0 0 0 1 0" /></filter>}
         </defs>
       )}
 
-      {/* Ground shadow */}
-      <ellipse cx="24" cy="42" rx="12" ry="2" fill="rgba(0,0,0,0.08)" />
+      {/* Soft ground shadow */}
+      <ellipse cx="24" cy="44" rx="10" ry="2" fill="rgba(0,0,0,0.06)" />
 
-      {/* Plant group — droop + filter applied here only */}
-      <g filter={filterId ? `url(#${filterId})` : undefined} style={droopStyle} className={healthClass}>
-        {stage === 0 && <SeedStage />}
-        {stage === 1 && <SproutStage p={p} />}
-        {stage === 2 && <SaplingStage p={p} />}
-        {stage === 3 && <BloomStage p={p} />}
-        {stage === 4 && <TreeStage p={p} />}
+      <g filter={filterId ? `url(#${filterId})` : undefined} style={droopStyle}>
+        {stage === 0 && <Seed p={p} />}
+        {stage === 1 && <Sprout p={p} />}
+        {stage === 2 && <Sapling p={p} />}
+        {stage === 3 && <Bloom p={p} />}
+        {stage === 4 && <Tree p={p} />}
       </g>
     </svg>
   )
 }
 
-/** Stage 0: Small brown seed in soil, subtle pulse */
-function SeedStage() {
+// ── Stage 0: Seed — a gentle promise ──────────────────────
+function Seed({ p }: { p: Palette }) {
   return (
-    <g className="animate-breathe" style={{ transformOrigin: '24px 40px' }}>
-      <ellipse cx="24" cy="40" rx="3.5" ry="2.5" fill="#a8977a" />
-      <ellipse cx="24" cy="39.5" rx="2.5" ry="1.8" fill="#c4a882" />
+    <g className="animate-breathe" style={{ transformOrigin: '24px 42px' }}>
+      {/* Soil mound */}
+      <ellipse cx="24" cy="42" rx="8" ry="3" fill={p.soil} opacity="0.4" />
+      <ellipse cx="24" cy="41" rx="6" ry="2" fill={p.soil} opacity="0.3" />
+      {/* Seed */}
+      <ellipse cx="24" cy="40" rx="3" ry="2.2" fill={p.soil} />
+      <ellipse cx="23.5" cy="39.5" rx="2" ry="1.5" fill={p.stem} opacity="0.4" />
     </g>
   )
 }
 
-/** Stage 1: Thin stem + 2 small leaves, gentle sway */
-function SproutStage({ p }: { p: Palette }) {
+// ── Stage 1: Sprout — first breath ────────────────────────
+function Sprout({ p }: { p: Palette }) {
   return (
-    <g className="animate-plant-sway" style={{ transformOrigin: '24px 42px' }}>
-      <line x1="24" y1="42" x2="24" y2="32" stroke={p.leaf} strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M24 35 Q20 32 19 34 Q20 36 24 35Z" fill={p.leaf} />
-      <path d="M24 33 Q28 30 29 32 Q28 34 24 33Z" fill={p.leafLight} />
+    <g className="animate-plant-sway" style={{ transformOrigin: '24px 44px' }}>
+      {/* Soil */}
+      <ellipse cx="24" cy="43" rx="6" ry="2" fill={p.soil} opacity="0.3" />
+      {/* Stem — slightly curved, not straight */}
+      <path d="M24,43 Q23.5,38 24,33" stroke={p.stem} strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      {/* Two leaves — asymmetric, soft Q-curves */}
+      <path d="M24,37 Q19,34 18,36 Q19.5,38.5 24,37Z" fill={p.leaf} />
+      <path d="M24,35 Q28.5,32 29.5,34 Q28,36.5 24,35Z" fill={p.leafLight} />
+      {/* Leaf veins — whisper thin */}
+      <path d="M24,37 Q21,35.5 19,36" stroke={p.leafShadow} strokeWidth="0.3" fill="none" opacity="0.5" />
     </g>
   )
 }
 
-/** Stage 2: Taller stem + 4 leaves */
-function SaplingStage({ p }: { p: Palette }) {
+// ── Stage 2: Sapling — growing confidence ─────────────────
+function Sapling({ p }: { p: Palette }) {
   return (
-    <g className="animate-plant-sway" style={{ transformOrigin: '24px 42px' }}>
-      <line x1="24" y1="42" x2="24" y2="24" stroke={p.stem} strokeWidth="2" strokeLinecap="round" />
-      <path d="M24 36 Q19 33 17 35 Q19 38 24 36Z" fill={p.leaf} />
-      <path d="M24 36 Q29 33 31 35 Q29 38 24 36Z" fill={p.leaf} />
-      <path d="M24 29 Q19 26 18 28 Q20 31 24 29Z" fill={p.stem} />
-      <path d="M24 29 Q29 26 30 28 Q28 31 24 29Z" fill={p.stem} />
+    <g className="animate-plant-sway" style={{ transformOrigin: '24px 44px' }}>
+      <ellipse cx="24" cy="43" rx="7" ry="2.5" fill={p.soil} opacity="0.25" />
+      {/* Stem with gentle curve */}
+      <path d="M24,43 Q23,36 24,26" stroke={p.stem} strokeWidth="2" strokeLinecap="round" fill="none" />
+      {/* Four leaves — alternating sides, organic shapes */}
+      <path d="M24,38 Q18,35 16.5,37 Q18,40 24,38Z" fill={p.leaf} />
+      <path d="M24,37 Q30,34 31.5,36 Q30,39 24,37Z" fill={p.leafLight} />
+      <path d="M24,31 Q18.5,28 17.5,30 Q19,33 24,31Z" fill={p.leafShadow} opacity="0.7" />
+      <path d="M24,30 Q29,27 30.5,29 Q29,32 24,30Z" fill={p.leaf} opacity="0.8" />
+      {/* Veins */}
+      <path d="M24,38 Q20.5,36.5 17.5,37" stroke={p.leafShadow} strokeWidth="0.3" fill="none" opacity="0.4" />
+      <path d="M24,31 Q21,29.5 18.5,30" stroke={p.leafShadow} strokeWidth="0.3" fill="none" opacity="0.3" />
     </g>
   )
 }
 
-/** Stage 3: Full stem + leaves + flower */
-function BloomStage({ p }: { p: Palette }) {
+// ── Stage 3: Bloom — the reward of patience ───────────────
+function Bloom({ p }: { p: Palette }) {
   return (
-    <g className="animate-plant-sway" style={{ transformOrigin: '24px 42px' }}>
-      <line x1="24" y1="42" x2="24" y2="18" stroke={p.trunk} strokeWidth="2" strokeLinecap="round" />
-      <path d="M24 36 Q18 33 16 35 Q18 38 24 36Z" fill={p.leaf} />
-      <path d="M24 36 Q30 33 32 35 Q30 38 24 36Z" fill={p.leaf} />
-      <path d="M24 28 Q18 25 17 27 Q19 30 24 28Z" fill={p.stem} />
-      <path d="M24 28 Q30 25 31 27 Q29 30 24 28Z" fill={p.stem} />
-      <circle cx="24" cy="16" r="2" fill={p.flower} />
-      <circle cx="21" cy="17.5" r="1.8" fill={p.flower} opacity="0.8" />
-      <circle cx="27" cy="17.5" r="1.8" fill={p.flower} opacity="0.8" />
-      <circle cx="22.5" cy="14.5" r="1.8" fill={p.flower} opacity="0.8" />
-      <circle cx="25.5" cy="14.5" r="1.8" fill={p.flower} opacity="0.8" />
-      <circle cx="24" cy="16" r="1.2" fill={p.center} />
+    <g className="animate-plant-sway" style={{ transformOrigin: '24px 44px' }}>
+      <ellipse cx="24" cy="43" rx="8" ry="2.5" fill={p.soil} opacity="0.2" />
+      {/* Main stem — gentle S-curve */}
+      <path d="M24,43 Q23,35 23.5,28 Q24,22 24,18" stroke={p.trunk} strokeWidth="2" strokeLinecap="round" fill="none" />
+      {/* Side branch */}
+      <path d="M24,32 Q20,29 18,27" stroke={p.trunk} strokeWidth="1.2" strokeLinecap="round" fill="none" />
+      {/* Leaves — lush but not cluttered */}
+      <path d="M24,38 Q17,35 15.5,37 Q17.5,40 24,38Z" fill={p.leaf} />
+      <path d="M24,36 Q31,33 32.5,35 Q30.5,38 24,36Z" fill={p.leafLight} />
+      <path d="M24,30 Q18,27 17,29 Q19,32 24,30Z" fill={p.leafShadow} opacity="0.7" />
+      <path d="M18,27 Q15,24 14,26 Q15.5,28.5 18,27Z" fill={p.leaf} opacity="0.8" />
+      {/* Flower — soft layered petals */}
+      <ellipse cx="24" cy="16" rx="3.5" ry="4" fill={p.flower} opacity="0.7" />
+      <ellipse cx="21" cy="17.5" rx="3" ry="3.5" fill={p.flower} opacity="0.6" transform="rotate(-15 21 17.5)" />
+      <ellipse cx="27" cy="17.5" rx="3" ry="3.5" fill={p.flower} opacity="0.6" transform="rotate(15 27 17.5)" />
+      <ellipse cx="22.5" cy="14" rx="2.8" ry="3.2" fill={p.flower} opacity="0.5" transform="rotate(-8 22.5 14)" />
+      <ellipse cx="25.5" cy="14" rx="2.8" ry="3.2" fill={p.flower} opacity="0.5" transform="rotate(8 25.5 14)" />
+      {/* Center — warm heart */}
+      <circle cx="24" cy="16" r="2" fill={p.center} opacity="0.8" />
+      <circle cx="24" cy="16" r="1" fill={p.flower} opacity="0.5" />
     </g>
   )
 }
 
-/** Stage 4: Thick trunk + rounded canopy */
-function TreeStage({ p }: { p: Palette }) {
+// ── Stage 4: Tree — quiet strength ────────────────────────
+function Tree({ p }: { p: Palette }) {
   return (
-    <g className="animate-plant-sway" style={{ transformOrigin: '24px 42px' }}>
-      <line x1="24" y1="42" x2="24" y2="22" stroke={p.trunk} strokeWidth="3" strokeLinecap="round" />
-      <line x1="24" y1="30" x2="19" y2="26" stroke={p.trunk} strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="24" y1="30" x2="29" y2="26" stroke={p.trunk} strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="24" cy="16" r="10" fill={p.canopyDark} opacity="0.7" />
-      <circle cx="20" cy="18" r="7" fill={p.canopyLight} opacity="0.6" />
-      <circle cx="28" cy="18" r="7" fill={p.canopyLight} opacity="0.6" />
-      <circle cx="24" cy="13" r="8" fill={p.canopyDark} opacity="0.5" />
+    <g className="animate-plant-sway" style={{ transformOrigin: '24px 44px' }}>
+      <ellipse cx="24" cy="43.5" rx="10" ry="2.5" fill={p.soil} opacity="0.15" />
+      {/* Trunk — tapered, with character */}
+      <path d="M24,44 Q23.5,38 23,32 Q23,28 24,24" stroke={p.trunk} strokeWidth="3.5" strokeLinecap="round" fill="none" />
+      {/* Branches — organic, asymmetric */}
+      <path d="M24,30 Q19,27 16,24" stroke={p.trunk} strokeWidth="1.8" strokeLinecap="round" fill="none" />
+      <path d="M24,28 Q28,25 31,23" stroke={p.trunk} strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <path d="M24,34 Q20,32 18,30" stroke={p.trunk} strokeWidth="1.2" strokeLinecap="round" fill="none" />
+      {/* Canopy — overlapping soft circles, asymmetric placement */}
+      <circle cx="22" cy="18" r="8" fill={p.canopyShadow} opacity="0.5" />
+      <circle cx="28" cy="17" r="7" fill={p.canopy} opacity="0.5" />
+      <circle cx="18" cy="15" r="6.5" fill={p.canopy} opacity="0.45" />
+      <circle cx="25" cy="12" r="7.5" fill={p.canopyLight} opacity="0.45" />
+      <circle cx="20" cy="20" r="5" fill={p.canopyShadow} opacity="0.3" />
+      {/* Light dapples — suggests sunlight through leaves */}
+      <circle cx="22" cy="14" r="2" fill={p.canopyLight} opacity="0.25" />
+      <circle cx="27" cy="18" r="1.5" fill={p.canopyLight} opacity="0.2" />
     </g>
   )
 }
