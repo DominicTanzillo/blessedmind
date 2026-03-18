@@ -40,7 +40,7 @@ export default function Header({ onLogout, taskCount, waitingCount, overdueWaiti
           </Link>
           <Link to="/waiting" className={`${linkClass('/waiting')} relative`}>
             Waiting
-            {waitingCount > 0 && (
+            {!isFocus && waitingCount > 0 && (
               <span className="ml-1.5 text-xs text-stone-400">{waitingCount}</span>
             )}
             {!isFocus && overdueWaitingCount > 0 && (

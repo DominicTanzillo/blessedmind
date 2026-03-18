@@ -4,7 +4,7 @@ import { rankTasks } from '../lib/prioritize'
 import { BATCH_SIZE } from '../lib/constants'
 import type { Task, ActiveBatch } from '../types'
 
-export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
+export function useActiveBatch(tasks: Task[]) {
   const [batch, setBatch] = useState<ActiveBatch | null>(null)
   const [loading, setLoading] = useState(true)
   const generatingRef = useRef(false)
@@ -58,14 +58,26 @@ export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
   // The set of task IDs currently in the batch
   const batchTaskIds = new Set(batch?.task_ids ?? [])
 
-  // Create a new batch from the top-ranked tasks
+  // Helper to save a new batch
+  async function saveBatch(taskIds: string[], oldBatchId?: string) {
+    if (oldBatchId) {
+      await supabase.from('active_batch').delete().eq('id', oldBatchId)
+    }
+    const { data } = await supabase
+      .from('active_batch')
+      .insert({ task_ids: taskIds, completed_task_ids: [] })
+      .select()
+      .single()
+    if (data) setBatch(data as ActiveBatch)
+  }
+
+  // Create a new batch from the top-ranked tasks (full refresh)
   const generateNewBatch = useCallback(async () => {
     if (generatingRef.current) return
     generatingRef.current = true
     try {
       const ranked = rankTasks(tasks)
-      const effectiveSize = Math.max(0, BATCH_SIZE - enabledGrindCount)
-      const topIds = ranked.slice(0, effectiveSize).map(t => t.id)
+      const topIds = ranked.slice(0, BATCH_SIZE).map(t => t.id)
 
       if (topIds.length === 0) {
         if (batch?.id) {
@@ -75,23 +87,11 @@ export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
         return
       }
 
-      if (batch?.id) {
-        await supabase.from('active_batch').delete().eq('id', batch.id)
-      }
-
-      const { data } = await supabase
-        .from('active_batch')
-        .insert({ task_ids: topIds, completed_task_ids: [] })
-        .select()
-        .single()
-
-      if (data) {
-        setBatch(data as ActiveBatch)
-      }
+      await saveBatch(topIds, batch?.id)
     } finally {
       generatingRef.current = false
     }
-  }, [tasks, batch?.id, enabledGrindCount])
+  }, [tasks, batch?.id])
 
   // Initialize batch if none exists
   useEffect(() => {
@@ -120,36 +120,21 @@ export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
     hasRefreshedRef.current = true
 
     const incompleteBatchTasks = batchTasks.filter(t => !t.completed)
-    const effectiveSize = Math.max(0, BATCH_SIZE - enabledGrindCount)
 
     // If some batch tasks are completed, fill their slots with new tasks
-    if (incompleteBatchTasks.length < effectiveSize && completedInBatch > 0) {
+    if (incompleteBatchTasks.length < BATCH_SIZE && completedInBatch > 0) {
       const ranked = rankTasks(tasks)
       const currentIds = new Set(incompleteBatchTasks.map(t => t.id))
       const newTasks = ranked.filter(t => !currentIds.has(t.id))
-      const slotsToFill = effectiveSize - incompleteBatchTasks.length
+      const slotsToFill = BATCH_SIZE - incompleteBatchTasks.length
       const fillIds = newTasks.slice(0, slotsToFill).map(t => t.id)
       const newBatchIds = [...incompleteBatchTasks.map(t => t.id), ...fillIds]
 
       if (fillIds.length > 0) {
-        // Update the batch with refreshed task list
-        supabase
-          .from('active_batch')
-          .delete()
-          .eq('id', batch.id)
-          .then(() => {
-            supabase
-              .from('active_batch')
-              .insert({ task_ids: newBatchIds, completed_task_ids: [] })
-              .select()
-              .single()
-              .then(({ data }) => {
-                if (data) setBatch(data as ActiveBatch)
-              })
-          })
+        saveBatch(newBatchIds, batch.id)
       }
     }
-  }, [loading, batch, tasks, batchTasks, completedInBatch, enabledGrindCount])
+  }, [loading, batch, tasks, batchTasks, completedInBatch])
 
   // Refresh batch when tasks are edited — keep completed tasks pinned,
   // re-rank incomplete slots with the best available candidates
@@ -157,8 +142,7 @@ export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
     if (!batch) return
 
     const completedIds = batchTasks.filter(t => t.completed).map(t => t.id)
-    const effectiveSize = Math.max(0, BATCH_SIZE - enabledGrindCount)
-    const incompleteSlots = effectiveSize - completedIds.length
+    const incompleteSlots = BATCH_SIZE - completedIds.length
 
     if (incompleteSlots <= 0) return
 
@@ -168,14 +152,8 @@ export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
     const fillIds = newIncomplete.slice(0, incompleteSlots).map(t => t.id)
     const newBatchIds = [...completedIds, ...fillIds]
 
-    await supabase.from('active_batch').delete().eq('id', batch.id)
-    const { data } = await supabase
-      .from('active_batch')
-      .insert({ task_ids: newBatchIds, completed_task_ids: [] })
-      .select()
-      .single()
-    if (data) setBatch(data as ActiveBatch)
-  }, [batch, batchTasks, tasks, enabledGrindCount])
+    await saveBatch(newBatchIds, batch.id)
+  }, [batch, batchTasks, tasks])
 
   return {
     batchTasks,

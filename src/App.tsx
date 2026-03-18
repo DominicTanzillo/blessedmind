@@ -18,6 +18,7 @@ import MissedDaysDialog from './components/grind/MissedDaysDialog'
 import AddTaskForm from './components/inbox/AddTaskForm'
 import PomodoroOverlay from './components/pomodoro/PomodoroOverlay'
 import Modal from './components/ui/Modal'
+import WaitingDatePrompt from './components/waiting/WaitingDatePrompt'
 
 export default function App() {
   const { authenticated, login, logout, error } = useAuth()
@@ -47,7 +48,7 @@ export default function App() {
     generateNewBatch,
     refreshBatch,
     loading: batchLoading,
-  } = useActiveBatch(tasks, activeGrinds.length)
+  } = useActiveBatch(tasks)
   const {
     pomodoros,
     timerActive,
@@ -74,6 +75,8 @@ export default function App() {
   const completedHydras = tasks.filter(t => t.completed && t.steps && t.steps.length > 1)
 
   const [addModalOpen, setAddModalOpen] = useState(false)
+  const [waitingPromptTaskId, setWaitingPromptTaskId] = useState<string | null>(null)
+  const waitingPromptTask = waitingPromptTaskId ? tasks.find(t => t.id === waitingPromptTaskId) : null
 
   const handleAddClick = useCallback(() => setAddModalOpen(true), [])
   const handleAddClose = useCallback(() => setAddModalOpen(false), [])
@@ -83,6 +86,18 @@ export default function App() {
     // Refresh the focus batch — completed tasks stay, incomplete re-rank
     refreshBatch()
   }, [updateTask, refreshBatch])
+
+  const handleConvertToWaiting = useCallback((id: string) => {
+    setWaitingPromptTaskId(id)
+  }, [])
+
+  const handleWaitingConfirm = useCallback(async (date: string) => {
+    if (waitingPromptTaskId) {
+      await convertToWaiting(waitingPromptTaskId, date)
+      setWaitingPromptTaskId(null)
+      refreshBatch()
+    }
+  }, [waitingPromptTaskId, convertToWaiting, refreshBatch])
 
   const completeWaitingTask = useCallback(async (id: string) => {
     await updateTask(id, { waiting: false, completed: true, completed_at: new Date().toISOString() })
@@ -113,7 +128,7 @@ export default function App() {
       onComplete={completeTask}
       onUncomplete={uncompleteTask}
       onCompleteStep={completeStep}
-      onConvertToWaiting={convertToWaiting}
+      onConvertToWaiting={handleConvertToWaiting}
       onEdit={handleEdit}
       onNextBatch={generateNewBatch}
       loading={tasksLoading || batchLoading || grindsLoading}
@@ -137,7 +152,7 @@ export default function App() {
       onEdit={handleEdit}
       onStar={starTask}
       onUnstar={unstarTask}
-      onConvertToWaiting={convertToWaiting}
+      onConvertToWaiting={handleConvertToWaiting}
       onAddClick={handleAddClick}
     />
   )
@@ -148,6 +163,7 @@ export default function App() {
       onReactivate={reactivateTask}
       onComplete={completeWaitingTask}
       onDelete={deleteTask}
+      onEdit={handleEdit}
     />
   )
 
@@ -205,6 +221,14 @@ export default function App() {
       <Modal open={addModalOpen} onClose={handleAddClose} title="Brain Dump">
         <AddTaskForm onAdd={addTask} onClose={handleAddClose} taskCount={tasks.length} />
       </Modal>
+
+      {waitingPromptTask && (
+        <WaitingDatePrompt
+          taskTitle={waitingPromptTask.title}
+          onConfirm={handleWaitingConfirm}
+          onCancel={() => setWaitingPromptTaskId(null)}
+        />
+      )}
 
       {missedDays.length > 0 && (
         <MissedDaysDialog missedDays={missedDays} onReconcile={reconcileMissedDay} />

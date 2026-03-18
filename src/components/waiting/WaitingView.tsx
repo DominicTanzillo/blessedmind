@@ -1,4 +1,5 @@
-import { CATEGORY_EMOJI } from '../../lib/constants'
+import { useState } from 'react'
+import { PRIORITIES, CATEGORIES, CATEGORY_EMOJI } from '../../lib/constants'
 import type { Task } from '../../types'
 import type { Category } from '../../lib/constants'
 
@@ -7,6 +8,7 @@ interface Props {
   onReactivate: (id: string) => void
   onComplete: (id: string) => void
   onDelete: (id: string) => void
+  onEdit?: (id: string, updates: Partial<Task>) => void
 }
 
 function isOverdue(dueDate: string | null): boolean {
@@ -28,8 +30,9 @@ function formatReminderDate(dueDate: string | null): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function WaitingView({ tasks, onReactivate, onComplete, onDelete }: Props) {
+export default function WaitingView({ tasks, onReactivate, onComplete, onDelete, onEdit }: Props) {
   const waitingTasks = tasks.filter(t => t.waiting)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // Sort: overdue first, then by due date ascending
   const sorted = [...waitingTasks].sort((a, b) => {
@@ -80,6 +83,11 @@ export default function WaitingView({ tasks, onReactivate, onComplete, onDelete 
             const emoji = CATEGORY_EMOJI[task.category as Category] ?? '\u{1F4CB}'
             const overdue = isOverdue(task.due_date)
             const reminderText = formatReminderDate(task.due_date)
+
+            if (editingId === task.id) {
+              return <WaitingEditRow key={task.id} task={task} onSave={(updates) => { onEdit?.(task.id, updates); setEditingId(null) }} onCancel={() => setEditingId(null)} />
+            }
+
             return (
               <div
                 key={task.id}
@@ -108,6 +116,17 @@ export default function WaitingView({ tasks, onReactivate, onComplete, onDelete 
                 </div>
 
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                  {onEdit && (
+                    <button
+                      onClick={() => setEditingId(task.id)}
+                      className="p-1 rounded text-stone-300 hover:text-stone-600 transition"
+                      title="Edit"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     onClick={() => onReactivate(task.id)}
                     className="px-2 py-1 rounded-lg text-xs font-medium text-sage-600 hover:bg-sage-100 transition"
@@ -145,6 +164,102 @@ export default function WaitingView({ tasks, onReactivate, onComplete, onDelete 
           </p>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Inline edit row for waiting tasks ────────────────────────
+
+interface EditRowProps {
+  task: Task
+  onSave: (updates: Partial<Task>) => void
+  onCancel: () => void
+}
+
+function WaitingEditRow({ task, onSave, onCancel }: EditRowProps) {
+  const [title, setTitle] = useState(task.title)
+  const [description, setDescription] = useState(task.description)
+  const [dueDate, setDueDate] = useState(task.due_date ?? '')
+  const [priority, setPriority] = useState(task.priority)
+  const [category, setCategory] = useState(task.category)
+
+  function handleSave() {
+    if (!title.trim()) return
+    onSave({
+      title: title.trim(),
+      description: description.trim(),
+      due_date: dueDate || null,
+      priority,
+      category,
+    })
+  }
+
+  return (
+    <div className="p-3 rounded-xl bg-white border border-sage-200 space-y-3">
+      <input
+        type="text"
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        className="w-full px-3 py-2 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition"
+        autoFocus
+      />
+      <textarea
+        value={description}
+        onChange={e => setDescription(e.target.value)}
+        rows={2}
+        className="w-full px-3 py-2 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition resize-none"
+        placeholder="Notes"
+      />
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="block text-[10px] font-medium text-stone-400 mb-0.5">Reminder</label>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={e => setDueDate(e.target.value)}
+            className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-xs focus:outline-none focus:ring-1 focus:ring-sage-400"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] font-medium text-stone-400 mb-0.5">Weight</label>
+          <select
+            value={priority}
+            onChange={e => setPriority(Number(e.target.value) as 1 | 2 | 3)}
+            className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-xs focus:outline-none focus:ring-1 focus:ring-sage-400"
+          >
+            {PRIORITIES.map(p => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] font-medium text-stone-400 mb-0.5">Area</label>
+          <select
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+            className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-xs focus:outline-none focus:ring-1 focus:ring-sage-400"
+          >
+            {CATEGORIES.map(c => (
+              <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          className="flex-1 py-1.5 rounded-lg border border-stone-200 text-stone-500 text-xs font-medium hover:bg-stone-50 transition"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={!title.trim()}
+          className="flex-1 py-1.5 rounded-lg bg-sage-500 text-white text-xs font-medium hover:bg-sage-600 disabled:opacity-50 transition"
+        >
+          Save
+        </button>
+      </div>
     </div>
   )
 }
