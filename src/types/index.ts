@@ -1,3 +1,4 @@
+// ── Lightweight step representation (used by edit forms) ──
 export interface Step {
   id: string
   title: string
@@ -19,7 +20,10 @@ export interface TimeAudit {
   created_at: string
 }
 
-export interface Task {
+// ── Unified Item model ─────────────────────────────────────
+export type ItemType = 'task' | 'step' | 'habit_entry' | 'prayer' | 'audit'
+
+export interface Item {
   id: string
   title: string
   description: string
@@ -31,13 +35,20 @@ export interface Task {
   starred: boolean
   starred_at: string | null
   waiting: boolean
-  steps: Step[] | null
+  waiting_reminder_date: string | null
+  parent_id: string | null
+  position: number | null
+  item_type: ItemType
+  source_id: string | null
   created_at: string
   updated_at: string
+  children?: Item[]       // populated client-side, not stored
+  steps?: Step[] | null   // backward compat, derived from children
 }
 
-export type NewTask = Pick<Task, 'title'> &
-  Partial<Pick<Task, 'description' | 'due_date' | 'priority' | 'category' | 'steps'>>
+export type NewTask = Pick<Item, 'title'> &
+  Partial<Pick<Item, 'description' | 'due_date' | 'priority' | 'category'>> &
+  { steps?: Step[] | null }
 
 export interface TaskFilter {
   search: string
@@ -46,16 +57,8 @@ export interface TaskFilter {
   showCompleted: boolean
 }
 
-export interface ActiveBatch {
-  id: string
-  task_ids: string[]
-  completed_task_ids: string[]
-  created_at: string
-}
-
-export type PlantHealth = 'healthy' | 'wilting' | 'sick' | 'withered'
-
-export interface Grind {
+// ── Habit Templates (replaces Grinds) ──────────────────────
+export interface HabitTemplate {
   id: string
   title: string
   description: string
@@ -70,7 +73,39 @@ export interface Grind {
   updated_at: string
 }
 
-export type NewGrind = Pick<Grind, 'title'> & Partial<Pick<Grind, 'disabled_days' | 'description'>>
+// ── Focus Batch (replaces Active Batch) ────────────────────
+export interface FocusBatch {
+  id: string
+  item_ids: string[]
+  created_at: string
+}
+
+// ── Garden Artifacts (persistent garden) ───────────────────
+export interface GardenArtifact {
+  id: string
+  artifact_type: 'plant' | 'bush' | 'trophy' | 'rose' | 'bouquet'
+  item_id: string | null
+  template_id: string | null
+  variant: number
+  tier: number
+  name: string
+  placed_at: string
+  position_x: number | null
+  position_y: number | null
+}
+
+// ── Pomodoro (rebuilt with proper FK) ──────────────────────
+export interface Pomodoro {
+  id: string
+  item_id: string | null
+  task_title: string
+  template_id: string | null
+  duration_minutes: number
+  completed_at: string
+  created_at: string
+}
+
+export type PlantHealth = 'healthy' | 'wilting' | 'sick' | 'withered'
 
 export interface MissedDay {
   grindId: string
@@ -78,11 +113,8 @@ export interface MissedDay {
   date: string                  // YYYY-MM-DD
 }
 
-export interface Pomodoro {
-  id: string
-  task_title: string
-  grind_id: string | null
-  duration_minutes: number
-  completed_at: string
-  created_at: string
-}
+// ── Backward compat aliases ────────────────────────────────
+export type Task = Item
+export type Grind = HabitTemplate
+export type NewGrind = Pick<HabitTemplate, 'title'> & Partial<Pick<HabitTemplate, 'disabled_days' | 'description'>>
+export type ActiveBatch = FocusBatch & { completed_task_ids?: string[] }

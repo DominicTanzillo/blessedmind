@@ -3,7 +3,7 @@ import PlantSVG from './PlantSVG'
 import AddGrindForm from './AddGrindForm'
 import TerrariumGrid from './TerrariumGrid'
 import Modal from '../ui/Modal'
-import { plantStage, STAGE_NAMES } from '../../hooks/useGrinds'
+import { plantStage, STAGE_NAMES } from '../../hooks/useHabitTemplates'
 import type { Grind, NewGrind, PlantHealth, Pomodoro, Task, TimeAudit } from '../../types'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -80,6 +80,11 @@ export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onD
         <p className="text-stone-400 text-sm">Daily habits take root here.</p>
       </div>
 
+      {/* Terrarium Grid — main focus, above habits */}
+      {(grinds.length > 0 || retiredGrinds.length > 0 || pomodoros.length > 0) && (
+        <TerrariumGrid grinds={grinds} retiredGrinds={retiredGrinds} pomodoros={pomodoros} prayerCount={prayerCount} healthMap={healthMap} completedHydras={completedHydras} completedAudits={completedAudits} />
+      )}
+
       {/* Active grinds */}
       <div className="space-y-4">
         {grinds.map(g => (
@@ -131,11 +136,6 @@ export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onD
             ))}
           </div>
         </div>
-      )}
-
-      {/* Terrarium Grid */}
-      {(grinds.length > 0 || retiredGrinds.length > 0 || pomodoros.length > 0) && (
-        <TerrariumGrid grinds={grinds} retiredGrinds={retiredGrinds} pomodoros={pomodoros} prayerCount={prayerCount} healthMap={healthMap} completedHydras={completedHydras} completedAudits={completedAudits} />
       )}
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Plant a Seed">

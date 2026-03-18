@@ -15,6 +15,7 @@ interface Props {
   onStar: (id: string) => void
   onUnstar: (id: string) => void
   onConvertToWaiting?: (id: string) => void
+  onCompleteSpecificStep?: (taskId: string, stepIndex: number) => void
 }
 
 function formatRelativeDate(dateStr: string | null): string {
@@ -30,7 +31,7 @@ function formatRelativeDate(dateStr: string | null): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEdit, onStar, onUnstar, onConvertToWaiting }: Props) {
+export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEdit, onStar, onUnstar, onConvertToWaiting, onCompleteSpecificStep }: Props) {
   const [editing, setEditing] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [editTitle, setEditTitle] = useState(task.title)
@@ -335,10 +336,29 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
               const stepDate = step.due_date ?? defaults[i] ?? null
               const isDefault = !step.due_date && !!defaults[i]
               return (
-                <div key={step.id} className="flex items-center gap-2 text-xs">
-                  <span className={step.completed ? 'text-complete' : 'text-stone-400'}>
-                    {step.completed ? '✓' : `${i + 1}.`}
-                  </span>
+                <div
+                  key={step.id}
+                  className={`flex items-center gap-2 text-xs ${onCompleteSpecificStep ? 'cursor-pointer hover:bg-sage-50 rounded px-1 -mx-1 py-0.5' : ''}`}
+                  onClick={onCompleteSpecificStep && !step.completed ? () => onCompleteSpecificStep(task.id, i) : undefined}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (onCompleteSpecificStep) onCompleteSpecificStep(task.id, i)
+                    }}
+                    disabled={!onCompleteSpecificStep}
+                    className={`w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center transition ${
+                      step.completed
+                        ? 'bg-complete border-complete text-white'
+                        : 'border-stone-300 hover:border-sage-400'
+                    }`}
+                  >
+                    {step.completed && (
+                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
                   <span className={step.completed ? 'line-through text-stone-400' : 'text-stone-600'}>
                     {step.title}
                   </span>

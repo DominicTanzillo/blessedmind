@@ -4,7 +4,7 @@ import BushSVG from './BushSVG'
 import WhiteRoseSVG from './WhiteRoseSVG'
 import TrophySVG, { trophyVariantFromId, trophyTier, getTrophyConfig } from './TrophySVG'
 import AuditBouquetSVG from './AuditBouquetSVG'
-import { plantStage } from '../../hooks/useGrinds'
+import { plantStage } from '../../hooks/useHabitTemplates'
 import type { Grind, Pomodoro, PlantHealth, Task, TimeAudit } from '../../types'
 
 const MIN_GRID = 8

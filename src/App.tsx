@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { HashRouter, Routes, Route } from 'react-router'
 import { useAuth } from './hooks/useAuth'
-import { useTasks } from './hooks/useTasks'
-import { useActiveBatch } from './hooks/useActiveBatch'
-import { useGrinds } from './hooks/useGrinds'
+import { useItems } from './hooks/useItems'
+import { useFocusBatch } from './hooks/useFocusBatch'
+import { useHabitTemplates } from './hooks/useHabitTemplates'
 import { usePomodoro } from './hooks/usePomodoro'
 import { usePrayers } from './hooks/usePrayers'
 import { useTimeAudit } from './hooks/useTimeAudit'
@@ -22,7 +22,7 @@ import WaitingDatePrompt from './components/waiting/WaitingDatePrompt'
 
 export default function App() {
   const { authenticated, login, logout, error } = useAuth()
-  const { tasks, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, completeSpecificStep, starTask, unstarTask, convertToWaiting, reactivateTask } = useTasks()
+  const { tasks, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, completeStep, completeSpecificStep, starTask, unstarTask, convertToWaiting, reactivateTask } = useItems()
   const {
     grinds,
     retiredGrinds,
@@ -40,7 +40,7 @@ export default function App() {
     updateGrind,
     retireGrind,
     reactivateGrind,
-  } = useGrinds()
+  } = useHabitTemplates()
   const {
     batchTasks,
     completedInBatch,
@@ -48,7 +48,7 @@ export default function App() {
     generateNewBatch,
     refreshBatch,
     loading: batchLoading,
-  } = useActiveBatch(tasks)
+  } = useFocusBatch(tasks)
   const {
     pomodoros,
     timerActive,
@@ -118,7 +118,7 @@ export default function App() {
   const totalIncomplete = tasks.filter(t => !t.completed && !t.waiting).length
   const waitingCount = tasks.filter(t => t.waiting).length
   const today = new Date().toLocaleDateString('en-CA')
-  const overdueWaitingCount = tasks.filter(t => t.waiting && t.due_date && t.due_date <= today).length
+  const overdueWaitingCount = tasks.filter(t => t.waiting && t.waiting_reminder_date && t.waiting_reminder_date <= today).length
 
   const dashboardEl = (
     <DashboardView
@@ -155,6 +155,7 @@ export default function App() {
       onUnstar={unstarTask}
       onConvertToWaiting={handleConvertToWaiting}
       onAddClick={handleAddClick}
+      onCompleteSpecificStep={completeSpecificStep}
     />
   )
 

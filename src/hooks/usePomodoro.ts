@@ -23,14 +23,12 @@ function loadTimer(): TimerState | null {
     const stored = localStorage.getItem(TIMER_KEY)
     if (!stored) return null
     const state = JSON.parse(stored) as TimerState
-    // Check if this timer was already completed by another tab
     const completed = localStorage.getItem(COMPLETED_KEY)
     if (completed === state.timerId) {
       localStorage.removeItem(TIMER_KEY)
       return null
     }
     if (state.targetTime > Date.now()) return state
-    // Timer expired while away — signal expired
     localStorage.removeItem(TIMER_KEY)
     return { ...state, targetTime: -1 }
   } catch { return null }
@@ -55,10 +53,10 @@ export function usePomodoro() {
   const [loading, setLoading] = useState(true)
   const completedRef = useRef(false)
 
-  // Fetch pomodoros
+  // Fetch pomodoros from new table
   useEffect(() => {
     supabase
-      .from('pomodoros')
+      .from('pomodoros_v2')
       .select('*')
       .order('completed_at', { ascending: false })
       .then(({ data }) => {
@@ -70,8 +68,8 @@ export function usePomodoro() {
   // Realtime subscription
   useEffect(() => {
     const channel = supabase
-      .channel('pomodoros-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pomodoros' }, (payload) => {
+      .channel('pomodoros-v2-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pomodoros_v2' }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const row = payload.new as Pomodoro
           setPomodoros(prev => prev.some(p => p.id === row.id) ? prev : [row, ...prev])
@@ -88,7 +86,6 @@ export function usePomodoro() {
     const restored = loadTimer()
     if (!restored) return
     if (restored.targetTime === -1) {
-      // Timer expired while app was closed — record the pomodoro
       completePomodoro(restored.taskTitle, restored.grindId, restored.durationMinutes, restored.timerId)
     } else {
       setTimer(restored)
@@ -107,7 +104,6 @@ export function usePomodoro() {
       if (remaining <= 0) {
         clearInterval(interval)
         setRemainingSeconds(0)
-        // Check if another tab already completed this timer
         const completed = localStorage.getItem(COMPLETED_KEY)
         if (!completedRef.current && completed !== timer.timerId) {
           completedRef.current = true
@@ -115,7 +111,6 @@ export function usePomodoro() {
           setTimer(null)
           saveTimer(null)
         } else {
-          // Another tab completed it — just clear local state
           setTimer(null)
         }
       } else {
@@ -128,10 +123,9 @@ export function usePomodoro() {
   }, [timer])
 
   async function completePomodoro(taskTitle: string, grindId: string | null, durationMinutes: number, timerId: string) {
-    // Mark as completed so other tabs don't duplicate
     markCompleted(timerId)
 
-    // Play a completion sound
+    // Play completion sound
     try {
       const c = new AudioContext()
       if (c.state === 'suspended') await c.resume()
@@ -159,9 +153,14 @@ export function usePomodoro() {
     // Haptic
     try { navigator?.vibrate?.(100) } catch { /* */ }
 
+    // Write to pomodoros_v2 with template_id (maps from grindId)
     const { data } = await supabase
-      .from('pomodoros')
-      .insert({ task_title: taskTitle, grind_id: grindId, duration_minutes: durationMinutes })
+      .from('pomodoros_v2')
+      .insert({
+        task_title: taskTitle,
+        template_id: grindId,
+        duration_minutes: durationMinutes,
+      })
       .select()
       .single()
 

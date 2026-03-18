@@ -105,19 +105,8 @@ export default function DashboardView({
     onNextBatch()
   }
 
-  // Sort: incomplete first, completed at bottom
-  const sortedBatch = [...batchTasks].sort((a, b) => {
-    if (a.completed === b.completed) return 0
-    return a.completed ? 1 : -1
-  })
-
-  // Expand hydra tasks into step-level focus items
-  const focusItems = expandToFocusItems(sortedBatch).sort((a, b) => {
-    const aCompleted = a.stepIdx != null ? (a.task.steps?.[a.stepIdx]?.completed ?? false) : a.task.completed
-    const bCompleted = b.stepIdx != null ? (b.task.steps?.[b.stepIdx]?.completed ?? false) : b.task.completed
-    if (aCompleted === bCompleted) return 0
-    return aCompleted ? 1 : -1
-  })
+  // Expand hydra tasks into step-level focus items — keep original position
+  const focusItems = expandToFocusItems(batchTasks)
 
   if (loading) {
     return (

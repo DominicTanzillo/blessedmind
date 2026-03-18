@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import PlantSVG from './PlantSVG'
 import PomodoroButton from '../pomodoro/PomodoroButton'
-import { plantStage, STAGE_NAMES } from '../../hooks/useGrinds'
+import { plantStage, STAGE_NAMES } from '../../hooks/useHabitTemplates'
 import { playGrindComplete } from '../../lib/sounds'
 import { getGrindCompletionMessage, shouldShowInsight } from '../../lib/celebrations'
 import type { Grind, PlantHealth } from '../../types'

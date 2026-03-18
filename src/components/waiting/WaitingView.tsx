@@ -11,15 +11,15 @@ interface Props {
   onEdit?: (id: string, updates: Partial<Task>) => void
 }
 
-function isOverdue(dueDate: string | null): boolean {
-  if (!dueDate) return false
+function isOverdue(reminderDate: string | null): boolean {
+  if (!reminderDate) return false
   const today = new Date().toLocaleDateString('en-CA')
-  return dueDate <= today
+  return reminderDate <= today
 }
 
-function formatReminderDate(dueDate: string | null): string {
-  if (!dueDate) return ''
-  const date = new Date(dueDate + 'T00:00:00')
+function formatReminderDate(reminderDate: string | null): string {
+  if (!reminderDate) return ''
+  const date = new Date(reminderDate + 'T00:00:00')
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const diff = Math.floor((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
@@ -34,16 +34,18 @@ export default function WaitingView({ tasks, onReactivate, onComplete, onDelete,
   const waitingTasks = tasks.filter(t => t.waiting)
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  // Sort: overdue first, then by due date ascending
+  // Sort: overdue first, then by reminder date ascending
   const sorted = [...waitingTasks].sort((a, b) => {
-    const aOverdue = isOverdue(a.due_date)
-    const bOverdue = isOverdue(b.due_date)
+    const aDate = a.waiting_reminder_date
+    const bDate = b.waiting_reminder_date
+    const aOverdue = isOverdue(aDate)
+    const bOverdue = isOverdue(bDate)
     if (aOverdue !== bOverdue) return aOverdue ? -1 : 1
-    if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
+    if (aDate && bDate) return aDate.localeCompare(bDate)
     return 0
   })
 
-  const overdueCount = waitingTasks.filter(t => isOverdue(t.due_date)).length
+  const overdueCount = waitingTasks.filter(t => isOverdue(t.waiting_reminder_date)).length
 
   return (
     <div className="space-y-4">
@@ -81,8 +83,8 @@ export default function WaitingView({ tasks, onReactivate, onComplete, onDelete,
         <div className="space-y-1">
           {sorted.map(task => {
             const emoji = CATEGORY_EMOJI[task.category as Category] ?? '\u{1F4CB}'
-            const overdue = isOverdue(task.due_date)
-            const reminderText = formatReminderDate(task.due_date)
+            const overdue = isOverdue(task.waiting_reminder_date)
+            const reminderText = formatReminderDate(task.waiting_reminder_date)
 
             if (editingId === task.id) {
               return <WaitingEditRow key={task.id} task={task} onSave={(updates) => { onEdit?.(task.id, updates); setEditingId(null) }} onCancel={() => setEditingId(null)} />
@@ -179,7 +181,7 @@ interface EditRowProps {
 function WaitingEditRow({ task, onSave, onCancel }: EditRowProps) {
   const [title, setTitle] = useState(task.title)
   const [description, setDescription] = useState(task.description)
-  const [dueDate, setDueDate] = useState(task.due_date ?? '')
+  const [reminderDate, setReminderDate] = useState(task.waiting_reminder_date ?? '')
   const [priority, setPriority] = useState(task.priority)
   const [category, setCategory] = useState(task.category)
 
@@ -188,7 +190,7 @@ function WaitingEditRow({ task, onSave, onCancel }: EditRowProps) {
     onSave({
       title: title.trim(),
       description: description.trim(),
-      due_date: dueDate || null,
+      waiting_reminder_date: reminderDate || null,
       priority,
       category,
     })
@@ -215,8 +217,8 @@ function WaitingEditRow({ task, onSave, onCancel }: EditRowProps) {
           <label className="block text-[10px] font-medium text-stone-400 mb-0.5">Reminder</label>
           <input
             type="date"
-            value={dueDate}
-            onChange={e => setDueDate(e.target.value)}
+            value={reminderDate}
+            onChange={e => setReminderDate(e.target.value)}
             className="w-full px-2 py-1.5 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-xs focus:outline-none focus:ring-1 focus:ring-sage-400"
           />
         </div>

@@ -2,22 +2,22 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { rankTasks } from '../lib/prioritize'
 import { BATCH_SIZE } from '../lib/constants'
-import type { Task, ActiveBatch } from '../types'
+import type { Task, FocusBatch } from '../types'
 
-export function useActiveBatch(tasks: Task[]) {
-  const [batch, setBatch] = useState<ActiveBatch | null>(null)
+export function useFocusBatch(tasks: Task[]) {
+  const [batch, setBatch] = useState<FocusBatch | null>(null)
   const [loading, setLoading] = useState(true)
   const generatingRef = useRef(false)
 
   const fetchBatch = useCallback(async () => {
     const { data } = await supabase
-      .from('active_batch')
+      .from('focus_batch')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
 
-    setBatch(data as ActiveBatch | null)
+    setBatch(data as FocusBatch | null)
     setLoading(false)
   }, [])
 
@@ -28,13 +28,13 @@ export function useActiveBatch(tasks: Task[]) {
   // ── Realtime subscription ──────────────────────────────
   useEffect(() => {
     const channel = supabase
-      .channel('active-batch-realtime')
+      .channel('focus-batch-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'active_batch' },
+        { event: '*', schema: 'public', table: 'focus_batch' },
         (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            setBatch(payload.new as ActiveBatch)
+            setBatch(payload.new as FocusBatch)
           } else if (payload.eventType === 'DELETE') {
             const oldId = (payload.old as { id: string }).id
             setBatch(prev => prev?.id === oldId ? null : prev)
@@ -48,27 +48,25 @@ export function useActiveBatch(tasks: Task[]) {
 
   // Get the tasks in the current batch — exclude waiting tasks
   const batchTasks = batch
-    ? tasks.filter(t => batch.task_ids.includes(t.id) && !t.waiting)
+    ? tasks.filter(t => batch.item_ids.includes(t.id) && !t.waiting)
     : []
 
-  // Count how many batch tasks are completed
   const completedInBatch = batchTasks.filter(t => t.completed).length
   const allCompleted = batchTasks.length > 0 && completedInBatch === batchTasks.length
 
-  // The set of task IDs currently in the batch
-  const batchTaskIds = new Set(batch?.task_ids ?? [])
+  const batchTaskIds = new Set(batch?.item_ids ?? [])
 
   // Helper to save a new batch
-  async function saveBatch(taskIds: string[], oldBatchId?: string) {
+  async function saveBatch(itemIds: string[], oldBatchId?: string) {
     if (oldBatchId) {
-      await supabase.from('active_batch').delete().eq('id', oldBatchId)
+      await supabase.from('focus_batch').delete().eq('id', oldBatchId)
     }
     const { data } = await supabase
-      .from('active_batch')
-      .insert({ task_ids: taskIds, completed_task_ids: [] })
+      .from('focus_batch')
+      .insert({ item_ids: itemIds })
       .select()
       .single()
-    if (data) setBatch(data as ActiveBatch)
+    if (data) setBatch(data as FocusBatch)
   }
 
   // Create a new batch from the top-ranked tasks (full refresh)
@@ -81,7 +79,7 @@ export function useActiveBatch(tasks: Task[]) {
 
       if (topIds.length === 0) {
         if (batch?.id) {
-          await supabase.from('active_batch').delete().eq('id', batch.id)
+          await supabase.from('focus_batch').delete().eq('id', batch.id)
         }
         setBatch(null)
         return
@@ -100,8 +98,7 @@ export function useActiveBatch(tasks: Task[]) {
     }
   }, [loading, batch, tasks, generateNewBatch])
 
-  // Auto-refresh batch when ALL batch tasks are completed —
-  // replace completed tasks with the next best candidates
+  // Auto-refresh batch when ALL batch tasks are completed
   useEffect(() => {
     if (!loading && batch && allCompleted) {
       const incompleteCount = tasks.filter(t => !t.completed && !t.waiting).length
@@ -121,7 +118,6 @@ export function useActiveBatch(tasks: Task[]) {
 
     const incompleteBatchTasks = batchTasks.filter(t => !t.completed)
 
-    // If some batch tasks are completed, fill their slots with new tasks
     if (incompleteBatchTasks.length < BATCH_SIZE && completedInBatch > 0) {
       const ranked = rankTasks(tasks)
       const currentIds = new Set(incompleteBatchTasks.map(t => t.id))
@@ -136,8 +132,7 @@ export function useActiveBatch(tasks: Task[]) {
     }
   }, [loading, batch, tasks, batchTasks, completedInBatch])
 
-  // Refresh batch when tasks are edited — keep completed tasks pinned,
-  // re-rank incomplete slots with the best available candidates
+  // Refresh batch when tasks are edited
   const refreshBatch = useCallback(async () => {
     if (!batch) return
 
@@ -166,3 +161,6 @@ export function useActiveBatch(tasks: Task[]) {
     hasBatch: !!batch,
   }
 }
+
+// Backward compat alias
+export const useActiveBatch = useFocusBatch
