@@ -4,6 +4,7 @@ interface Props {
   taskTitle: string
   remainingSeconds: number
   durationMinutes: number
+  colorVariant: number
   onCancel: () => void
 }
 
@@ -15,7 +16,7 @@ function getGrowthStage(progress: number): 0 | 1 | 2 | 3 | 4 {
   return 0
 }
 
-export default function PomodoroOverlay({ taskTitle, remainingSeconds, durationMinutes, onCancel }: Props) {
+export default function PomodoroOverlay({ taskTitle, remainingSeconds, durationMinutes, colorVariant, onCancel }: Props) {
   const totalSeconds = durationMinutes * 60
   const elapsed = totalSeconds - remainingSeconds
   const progress = totalSeconds > 0 ? elapsed / totalSeconds : 0
@@ -30,7 +31,7 @@ export default function PomodoroOverlay({ taskTitle, remainingSeconds, durationM
           <div className="flex items-center gap-3">
             {/* Growing bush */}
             <div className="flex-shrink-0">
-              <BushSVG stage={stage} size={44} colorVariant={Math.floor(Date.now() / 60000) % 5} />
+              <BushSVG stage={stage} size={44} colorVariant={colorVariant} />
             </div>
 
             {/* Info */}

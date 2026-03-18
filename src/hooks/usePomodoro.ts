@@ -11,6 +11,7 @@ interface TimerState {
   durationMinutes: number
   targetTime: number // Date.now() timestamp when timer ends
   timerId: string // unique id to prevent duplicate completions
+  colorVariant: number // bush color variant for consistent display
 }
 
 function generateId(): string {
@@ -169,18 +170,19 @@ export function usePomodoro() {
     }
   }
 
-  const startTimer = useCallback((durationMinutes: number, taskTitle: string, grindId: string | null = null) => {
+  const startTimer = useCallback((durationMinutes: number, taskTitle: string, grindId: string | null = null): void => {
     const state: TimerState = {
       taskTitle,
       grindId,
       durationMinutes,
       targetTime: Date.now() + durationMinutes * 60 * 1000,
       timerId: generateId(),
+      colorVariant: pomodoros.length % 10,
     }
     setTimer(state)
     setRemainingSeconds(durationMinutes * 60)
     saveTimer(state)
-  }, [])
+  }, [pomodoros.length])
 
   const cancelTimer = useCallback(() => {
     setTimer(null)
@@ -198,6 +200,7 @@ export function usePomodoro() {
     timerTaskTitle,
     timerGrindId: timer?.grindId ?? null,
     timerDuration: timer?.durationMinutes ?? 0,
+    timerColorVariant: timer?.colorVariant ?? 0,
     remainingSeconds,
     startTimer,
     cancelTimer,
