@@ -332,7 +332,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                       health: cell.health,
                     }, e)}
                   >
-                    <PlantSVG stage={stage} size="lg" colorVariant={cell.grind.color_variant} health={cell.health} />
+                    <PlantSVG stage={stage} size="md" colorVariant={cell.grind.color_variant} health={cell.health} />
                   </div>
                 </div>
               )
@@ -367,7 +367,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                       completedAt: cell.pomodoro.completed_at,
                     }, e)}
                   >
-                    <BushSVG stage={stage} size={48} colorVariant={cell.colorIndex} />
+                    <BushSVG stage={stage} size={42} colorVariant={cell.colorIndex} />
                   </div>
                 </div>
               )

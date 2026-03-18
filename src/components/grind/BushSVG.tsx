@@ -49,6 +49,7 @@ export default function BushSVG({ stage, size = 40, colorVariant = 0 }: Props) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className="animate-plant-grow"
+      style={{ overflow: 'hidden' }}
     >
       <g className="animate-plant-sway" style={{ transformOrigin: '18px 22px' }}>
         {stage <= 1 && <TinyBush p={p} />}
