@@ -304,7 +304,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               return (
                 <div
                   key={`${r}-${c}`}
-                  className="absolute cursor-pointer"
+                  className="absolute"
                   style={{
                     left: c * CELL_SIZE,
                     top: r * CELL_SIZE,
@@ -312,21 +312,26 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                     height: CELL_SIZE * 2,
                     transformStyle: 'preserve-3d',
                     zIndex: 5,
+                    pointerEvents: 'none',
                   }}
-                  onClick={(e) => handlePlantClick({
-                    type: 'habit',
-                    title: cell.grind.title,
-                    createdAt: cell.grind.created_at,
-                    streak: cell.grind.current_streak,
-                    bestStreak: cell.grind.best_streak,
-                    health: cell.health,
-                  }, e)}
                 >
-                  <div style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -80%)',
-                    transformOrigin: '0 0', transformStyle: 'preserve-3d',
-                  }}>
+                  <div
+                    className="cursor-pointer"
+                    style={{
+                      position: 'absolute', left: '50%', top: '50%',
+                      transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -80%)',
+                      transformOrigin: '0 0', transformStyle: 'preserve-3d',
+                      pointerEvents: 'auto',
+                    }}
+                    onClick={(e) => handlePlantClick({
+                      type: 'habit',
+                      title: cell.grind.title,
+                      createdAt: cell.grind.created_at,
+                      streak: cell.grind.current_streak,
+                      bestStreak: cell.grind.best_streak,
+                      health: cell.health,
+                    }, e)}
+                  >
                     <PlantSVG stage={stage} size="lg" colorVariant={cell.grind.color_variant} health={cell.health} />
                   </div>
                 </div>
@@ -338,26 +343,31 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               return (
                 <div
                   key={`${r}-${c}`}
-                  className="absolute cursor-pointer"
+                  className="absolute"
                   style={{
                     left: c * CELL_SIZE, top: r * CELL_SIZE,
                     width: CELL_SIZE, height: CELL_SIZE,
                     transformStyle: 'preserve-3d',
                     zIndex: 3,
+                    pointerEvents: 'none',
                   }}
-                  onClick={(e) => handlePlantClick({
-                    type: 'pomodoro',
-                    taskTitle: cell.pomodoro.task_title,
-                    durationMinutes: cell.pomodoro.duration_minutes,
-                    completedAt: cell.pomodoro.completed_at,
-                  }, e)}
                 >
-                  <div style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
-                    transformOrigin: '0 0',
-                  }}>
-                    <BushSVG stage={stage} size={40} colorVariant={cell.colorIndex} />
+                  <div
+                    className="cursor-pointer"
+                    style={{
+                      position: 'absolute', left: '50%', top: '50%',
+                      transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -60%)',
+                      transformOrigin: '0 0',
+                      pointerEvents: 'auto',
+                    }}
+                    onClick={(e) => handlePlantClick({
+                      type: 'pomodoro',
+                      taskTitle: cell.pomodoro.task_title,
+                      durationMinutes: cell.pomodoro.duration_minutes,
+                      completedAt: cell.pomodoro.completed_at,
+                    }, e)}
+                  >
+                    <BushSVG stage={stage} size={48} colorVariant={cell.colorIndex} />
                   </div>
                 </div>
               )
@@ -370,27 +380,32 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               return (
                 <div
                   key={`${r}-${c}`}
-                  className="absolute cursor-pointer"
+                  className="absolute"
                   style={{
                     left: c * CELL_SIZE, top: r * CELL_SIZE,
                     width: CELL_SIZE, height: CELL_SIZE,
                     transformStyle: 'preserve-3d',
                     zIndex: 3,
+                    pointerEvents: 'none',
                   }}
-                  onClick={(e) => handlePlantClick({
-                    type: 'trophy',
-                    title: cell.task.title,
-                    completedAt: cell.task.completed_at!,
-                    stepCount: cell.task.steps?.length ?? 0,
-                    trophyName,
-                  }, e)}
                 >
-                  <div style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
-                    transformOrigin: '0 0',
-                  }}>
-                    <TrophySVG size={36} variant={variant} tier={tier} />
+                  <div
+                    className="cursor-pointer"
+                    style={{
+                      position: 'absolute', left: '50%', top: '50%',
+                      transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -75%)',
+                      transformOrigin: '0 0',
+                      pointerEvents: 'auto',
+                    }}
+                    onClick={(e) => handlePlantClick({
+                      type: 'trophy',
+                      title: cell.task.title,
+                      completedAt: cell.task.completed_at!,
+                      stepCount: cell.task.steps?.length ?? 0,
+                      trophyName,
+                    }, e)}
+                  >
+                    <TrophySVG size={40} variant={variant} tier={tier} />
                   </div>
                 </div>
               )
@@ -400,25 +415,30 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               return (
                 <div
                   key={`${r}-${c}`}
-                  className="absolute cursor-pointer"
+                  className="absolute"
                   style={{
                     left: c * CELL_SIZE, top: r * CELL_SIZE,
                     width: CELL_SIZE, height: CELL_SIZE,
                     transformStyle: 'preserve-3d',
                     zIndex: 3,
+                    pointerEvents: 'none',
                   }}
-                  onClick={(e) => handlePlantClick({
-                    type: 'audit',
-                    completedAt: cell.audit.completed_at!,
-                    entryCount: cell.audit.entries.length,
-                  }, e)}
                 >
-                  <div style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
-                    transformOrigin: '0 0',
-                  }}>
-                    <AuditBouquetSVG size={36} />
+                  <div
+                    className="cursor-pointer"
+                    style={{
+                      position: 'absolute', left: '50%', top: '50%',
+                      transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -65%)',
+                      transformOrigin: '0 0',
+                      pointerEvents: 'auto',
+                    }}
+                    onClick={(e) => handlePlantClick({
+                      type: 'audit',
+                      completedAt: cell.audit.completed_at!,
+                      entryCount: cell.audit.entries.length,
+                    }, e)}
+                  >
+                    <AuditBouquetSVG size={40} />
                   </div>
                 </div>
               )
@@ -428,21 +448,26 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               return (
                 <div
                   key={`${r}-${c}`}
-                  className="absolute cursor-pointer"
+                  className="absolute"
                   style={{
                     left: c * CELL_SIZE, top: r * CELL_SIZE,
                     width: CELL_SIZE, height: CELL_SIZE,
                     transformStyle: 'preserve-3d',
                     zIndex: 3,
+                    pointerEvents: 'none',
                   }}
-                  onClick={(e) => handlePlantClick({ type: 'prayer' }, e)}
                 >
-                  <div style={{
-                    position: 'absolute', left: '50%', top: '50%',
-                    transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
-                    transformOrigin: '0 0',
-                  }}>
-                    <WhiteRoseSVG size={36} />
+                  <div
+                    className="cursor-pointer"
+                    style={{
+                      position: 'absolute', left: '50%', top: '50%',
+                      transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -60%)',
+                      transformOrigin: '0 0',
+                      pointerEvents: 'auto',
+                    }}
+                    onClick={(e) => handlePlantClick({ type: 'prayer' }, e)}
+                  >
+                    <WhiteRoseSVG size={38} />
                   </div>
                 </div>
               )
@@ -457,26 +482,22 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                 style={{ left: c * CELL_SIZE, top: r * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE }}
               >
                 {hash % 7 === 0 && (
-                  // Grass tuft
                   <svg className="absolute" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }} width="12" height="10" viewBox="0 0 12 10" fill="none">
                     <path d="M6 9 L4 3 L6 5 L8 2 L6 5 L9 4 L6 9Z" fill="rgba(80,140,50,0.25)" />
                   </svg>
                 )}
                 {hash % 11 === 0 && (
-                  // Small stone
                   <svg className="absolute" style={{ left: '40%', top: '55%', transform: 'translate(-50%, -50%)' }} width="8" height="6" viewBox="0 0 8 6" fill="none">
                     <ellipse cx="4" cy="3" rx="3.5" ry="2.5" fill="rgba(120,115,100,0.2)" />
                   </svg>
                 )}
                 {hash % 17 === 0 && (
-                  // Tiny flower
                   <svg className="absolute" style={{ left: '60%', top: '45%', transform: 'translate(-50%, -50%)' }} width="8" height="8" viewBox="0 0 8 8" fill="none">
                     <circle cx="4" cy="4" r="2" fill="rgba(255,220,180,0.3)" />
                     <circle cx="4" cy="4" r="0.8" fill="rgba(220,180,100,0.4)" />
                   </svg>
                 )}
                 {hash % 23 === 0 && (
-                  // Mushroom
                   <svg className="absolute" style={{ left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }} width="10" height="10" viewBox="0 0 10 10" fill="none">
                     <rect x="4.2" y="6" width="1.6" height="3" rx="0.5" fill="rgba(200,190,170,0.3)" />
                     <ellipse cx="5" cy="6" rx="3" ry="2" fill="rgba(180,100,80,0.2)" />
