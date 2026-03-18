@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback } from 'react'
 import PlantSVG from './PlantSVG'
 import BushSVG from './BushSVG'
 import WhiteRoseSVG from './WhiteRoseSVG'
-import TrophySVG from './TrophySVG'
+import TrophySVG, { trophyVariantFromId, trophyTier, getTrophyConfig } from './TrophySVG'
 import AuditBouquetSVG from './AuditBouquetSVG'
 import { plantStage } from '../../hooks/useGrinds'
 import type { Grind, Pomodoro, PlantHealth, Task, TimeAudit } from '../../types'
@@ -35,7 +35,7 @@ function cellHash(r: number, c: number): number {
 type TooltipInfo =
   | { type: 'habit'; title: string; createdAt: string; streak: number; bestStreak: number; health: PlantHealth }
   | { type: 'pomodoro'; taskTitle: string; durationMinutes: number; completedAt: string }
-  | { type: 'trophy'; title: string; completedAt: string; stepCount: number }
+  | { type: 'trophy'; title: string; completedAt: string; stepCount: number; trophyName: string }
   | { type: 'audit'; completedAt: string; entryCount: number }
   | { type: 'prayer' }
 
@@ -364,6 +364,9 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
             }
 
             if (cell.type === 'trophy') {
+              const variant = trophyVariantFromId(cell.task.id)
+              const tier = trophyTier(cell.task.steps?.length ?? 0)
+              const { name: trophyName } = getTrophyConfig(variant, tier)
               return (
                 <div
                   key={`${r}-${c}`}
@@ -379,6 +382,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                     title: cell.task.title,
                     completedAt: cell.task.completed_at!,
                     stepCount: cell.task.steps?.length ?? 0,
+                    trophyName,
                   }, e)}
                 >
                   <div style={{
@@ -386,7 +390,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                     transform: 'translateZ(4px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -50%)',
                     transformOrigin: '0 0',
                   }}>
-                    <TrophySVG size={36} />
+                    <TrophySVG size={36} variant={variant} tier={tier} />
                   </div>
                 </div>
               )
@@ -532,6 +536,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                 {tooltip.info.type === 'trophy' && (
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-stone-800">{tooltip.info.title}</p>
+                    <p className="text-xs text-amber-600 font-medium">{tooltip.info.trophyName}</p>
                     <p className="text-xs text-stone-400">{tooltip.info.stepCount} steps conquered</p>
                     <p className="text-xs text-stone-300">
                       {new Date(tooltip.info.completedAt).toLocaleDateString()}
