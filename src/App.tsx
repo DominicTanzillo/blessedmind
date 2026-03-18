@@ -45,6 +45,7 @@ export default function App() {
     completedInBatch,
     allCompleted,
     generateNewBatch,
+    refreshBatch,
     loading: batchLoading,
   } = useActiveBatch(tasks, activeGrinds.length)
   const {
@@ -77,9 +78,11 @@ export default function App() {
   const handleAddClick = useCallback(() => setAddModalOpen(true), [])
   const handleAddClose = useCallback(() => setAddModalOpen(false), [])
 
-  const handleEdit = useCallback((id: string, updates: Partial<typeof tasks[0]>) => {
-    updateTask(id, updates)
-  }, [updateTask])
+  const handleEdit = useCallback(async (id: string, updates: Partial<typeof tasks[0]>) => {
+    await updateTask(id, updates)
+    // Refresh the focus batch — completed tasks stay, incomplete re-rank
+    refreshBatch()
+  }, [updateTask, refreshBatch])
 
   const completeWaitingTask = useCallback(async (id: string) => {
     await updateTask(id, { waiting: false, completed: true, completed_at: new Date().toISOString() })
@@ -99,6 +102,8 @@ export default function App() {
 
   const totalIncomplete = tasks.filter(t => !t.completed && !t.waiting).length
   const waitingCount = tasks.filter(t => t.waiting).length
+  const today = new Date().toLocaleDateString('en-CA')
+  const overdueWaitingCount = tasks.filter(t => t.waiting && t.due_date && t.due_date <= today).length
 
   const dashboardEl = (
     <DashboardView
@@ -109,6 +114,7 @@ export default function App() {
       onUncomplete={uncompleteTask}
       onCompleteStep={completeStep}
       onConvertToWaiting={convertToWaiting}
+      onEdit={handleEdit}
       onNextBatch={generateNewBatch}
       loading={tasksLoading || batchLoading || grindsLoading}
       totalIncomplete={totalIncomplete}
@@ -166,7 +172,7 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
-        <Route element={<AppShell onLogout={logout} onAddClick={handleAddClick} taskCount={totalIncomplete} waitingCount={waitingCount} />}>
+        <Route element={<AppShell onLogout={logout} onAddClick={handleAddClick} taskCount={totalIncomplete} waitingCount={waitingCount} overdueWaitingCount={overdueWaitingCount} />}>
           <Route index element={dashboardEl} />
           <Route path="inbox" element={inboxEl} />
           <Route path="waiting" element={waitingEl} />

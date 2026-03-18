@@ -149,8 +149,11 @@ export function useTasks() {
     await updateTask(id, { starred: false, starred_at: null })
   }, [updateTask])
 
-  const convertToWaiting = useCallback(async (id: string) => {
-    await updateTask(id, { waiting: true, completed: false, completed_at: null })
+  const convertToWaiting = useCallback(async (id: string, reminderDate?: string) => {
+    const defaultReminder = new Date()
+    defaultReminder.setDate(defaultReminder.getDate() + 7)
+    const dueDate = reminderDate || defaultReminder.toLocaleDateString('en-CA')
+    await updateTask(id, { waiting: true, completed: false, completed_at: null, due_date: dueDate })
   }, [updateTask])
 
   const reactivateTask = useCallback(async (id: string) => {

@@ -13,6 +13,7 @@ interface Props {
   onUncomplete: (id: string) => void
   onCompleteStep: (id: string) => void
   onConvertToWaiting: (id: string) => void
+  onEdit: (id: string, updates: Partial<Task>) => void
   onNextBatch: () => void
   loading: boolean
   totalIncomplete: number
@@ -33,6 +34,7 @@ export default function DashboardView({
   onUncomplete,
   onCompleteStep,
   onConvertToWaiting,
+  onEdit,
   onNextBatch,
   loading,
   totalIncomplete,
@@ -126,7 +128,7 @@ export default function DashboardView({
         {/* Completed tasks - visible, checked off */}
         <div className="space-y-3">
           {sortedBatch.map((task, i) => (
-            <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} index={i} />
+            <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={i} />
           ))}
         </div>
 
@@ -212,7 +214,7 @@ export default function DashboardView({
           <GrindCard key={g.id} grind={g} health={healthMap.get(g.id)} onComplete={onCompleteGrind} index={i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} />
         ))}
         {sortedBatch.map((task, i) => (
-          <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} index={activeGrinds.length + i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} />
+          <TaskCard key={task.id} task={task} onComplete={onComplete} onUncomplete={onUncomplete} onCompleteStep={onCompleteStep} onConvertToWaiting={onConvertToWaiting} onEdit={onEdit} index={activeGrinds.length + i} onStartPomodoro={onStartPomodoro} pomodoroActive={pomodoroActive} />
         ))}
       </div>
 

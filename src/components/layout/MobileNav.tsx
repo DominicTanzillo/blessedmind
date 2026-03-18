@@ -2,10 +2,12 @@ import { Link, useLocation } from 'react-router'
 
 interface Props {
   onAddClick: () => void
+  overdueWaitingCount?: number
 }
 
-export default function MobileNav({ onAddClick }: Props) {
+export default function MobileNav({ onAddClick, overdueWaitingCount = 0 }: Props) {
   const { pathname } = useLocation()
+  const isFocus = pathname === '/'
 
   const linkClass = (path: string) =>
     `flex flex-col items-center gap-0.5 text-xs font-medium transition-all duration-200 ${
@@ -36,11 +38,16 @@ export default function MobileNav({ onAddClick }: Props) {
           Capture
         </button>
 
-        <Link to="/inbox" className={linkClass('/inbox')}>
+        <Link to="/inbox" className={`${linkClass('/inbox')} relative`}>
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-2.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
           </svg>
           Mind
+          {!isFocus && overdueWaitingCount > 0 && (
+            <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-terracotta text-white text-[10px] font-bold flex items-center justify-center">
+              {overdueWaitingCount}
+            </span>
+          )}
         </Link>
 
         <Link to="/pray" className={linkClass('/pray')}>

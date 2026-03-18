@@ -39,6 +39,7 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
   const [editPriority, setEditPriority] = useState(task.priority)
   const [editCategory, setEditCategory] = useState(task.category)
   const [editSteps, setEditSteps] = useState<Step[]>(task.steps ?? [])
+  const [editHasSteps, setEditHasSteps] = useState((task.steps ?? []).length > 0)
   const [newStepInput, setNewStepInput] = useState('')
 
   const priorityInfo = PRIORITIES.find(p => p.value === task.priority)
@@ -51,6 +52,7 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
     setEditPriority(task.priority)
     setEditCategory(task.category)
     setEditSteps(task.steps ?? [])
+    setEditHasSteps((task.steps ?? []).length > 0)
     setNewStepInput('')
     setEditing(true)
   }
@@ -84,7 +86,7 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
       due_date: editDueDate || null,
       priority: editPriority,
       category: editCategory,
-      steps: editSteps.length > 0 ? editSteps : null,
+      steps: editHasSteps && editSteps.length > 0 ? editSteps : null,
     })
     setEditing(false)
   }
@@ -107,9 +109,20 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
           placeholder="Notes"
         />
 
+        {/* Steps toggle */}
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div
+            onClick={() => setEditHasSteps(!editHasSteps)}
+            className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${editHasSteps ? 'bg-sage-500' : 'bg-stone-200'}`}
+          >
+            <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${editHasSteps ? 'translate-x-4' : ''}`} />
+          </div>
+          <span className="text-xs text-stone-600">Has steps</span>
+        </label>
+
         {/* Steps editor */}
+        {editHasSteps && (
         <div className="space-y-2 pl-2 border-l-2 border-sage-200">
-          <p className="text-xs font-medium text-stone-500">Steps</p>
           {editSteps.map((step, i) => (
             <div key={step.id} className="space-y-1">
               <div className="flex items-center gap-2">
@@ -164,6 +177,7 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
             </button>
           </div>
         </div>
+        )}
 
         <div className="grid grid-cols-3 gap-2">
           <input
@@ -292,8 +306,8 @@ export default function TaskRow({ task, onComplete, onUncomplete, onDelete, onEd
 
       {/* Action buttons - pinned star always visible, rest on hover */}
       <div className={`flex items-center gap-1 transition ${task.starred ? '' : 'opacity-0 group-hover:opacity-100'}`}>
-        {/* Follow-up button for completed tasks */}
-        {task.completed && onConvertToWaiting && (
+        {/* Follow-up / waiting button */}
+        {onConvertToWaiting && (
           <button
             onClick={() => onConvertToWaiting(task.id)}
             className="p-1 rounded text-stone-300 hover:text-sage-600 transition flex items-center gap-0.5 text-xs"

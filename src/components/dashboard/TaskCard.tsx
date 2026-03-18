@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import Badge from '../ui/Badge'
 import PomodoroButton from '../pomodoro/PomodoroButton'
-import { PRIORITIES, CATEGORY_EMOJI } from '../../lib/constants'
+import { PRIORITIES, CATEGORIES, CATEGORY_EMOJI } from '../../lib/constants'
 import { getCompletionMessage, shouldShowInsight } from '../../lib/celebrations'
 import { playComplete, playStepComplete } from '../../lib/sounds'
 import { getEffectiveStepDueDate } from '../../lib/hydra'
-import type { Task } from '../../types'
+import type { Task, Step } from '../../types'
 import type { Category } from '../../lib/constants'
 
 interface Props {
@@ -14,6 +14,7 @@ interface Props {
   onUncomplete: (id: string) => void
   onCompleteStep: (id: string) => void
   onConvertToWaiting: (id: string) => void
+  onEdit?: (id: string, updates: Partial<Task>) => void
   index: number
   onStartPomodoro?: (minutes: number, title: string, grindId: string | null) => void
   pomodoroActive?: boolean
@@ -32,11 +33,22 @@ function formatRelativeDate(dateStr: string | null): string {
   return `Due ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
 }
 
-export default function TaskCard({ task, onComplete, onUncomplete, onCompleteStep, onConvertToWaiting, index, onStartPomodoro, pomodoroActive }: Props) {
+export default function TaskCard({ task, onComplete, onUncomplete, onCompleteStep, onConvertToWaiting, onEdit, index, onStartPomodoro, pomodoroActive }: Props) {
   const [animatingComplete, setAnimatingComplete] = useState(false)
   const [completionMsg, setCompletionMsg] = useState('')
   const [showRipple, setShowRipple] = useState(false)
+  const [editing, setEditing] = useState(false)
   const prevCompleted = useRef(task.completed)
+
+  // Edit state
+  const [editTitle, setEditTitle] = useState(task.title)
+  const [editDescription, setEditDescription] = useState(task.description)
+  const [editDueDate, setEditDueDate] = useState(task.due_date ?? '')
+  const [editPriority, setEditPriority] = useState(task.priority)
+  const [editCategory, setEditCategory] = useState(task.category)
+  const [editSteps, setEditSteps] = useState<Step[]>(task.steps ?? [])
+  const [hasSteps, setHasSteps] = useState((task.steps ?? []).length > 0)
+  const [newStepInput, setNewStepInput] = useState('')
 
   // Clear animation state when task prop changes
   useEffect(() => {
@@ -57,57 +69,72 @@ export default function TaskCard({ task, onComplete, onUncomplete, onCompleteSte
   const isOverdue = dateText.includes('overdue')
 
   // Multi-step logic
-  const hasSteps = task.steps && task.steps.length > 0
-  const currentStepIndex = hasSteps ? task.steps!.findIndex(s => !s.completed) : -1
-  const currentStep = hasSteps && currentStepIndex !== -1 ? task.steps![currentStepIndex] : null
-  const completedSteps = hasSteps ? task.steps!.filter(s => s.completed).length : 0
-  const totalSteps = hasSteps ? task.steps!.length : 0
-  const isLastStep = hasSteps && currentStepIndex === totalSteps - 1
+  const taskHasSteps = task.steps && task.steps.length > 0
+  const currentStepIndex = taskHasSteps ? task.steps!.findIndex(s => !s.completed) : -1
+  const currentStep = taskHasSteps && currentStepIndex !== -1 ? task.steps![currentStepIndex] : null
+  const completedSteps = taskHasSteps ? task.steps!.filter(s => s.completed).length : 0
+  const totalSteps = taskHasSteps ? task.steps!.length : 0
+  const isLastStep = taskHasSteps && currentStepIndex === totalSteps - 1
   const hasCompletedSteps = completedSteps > 0
 
+  function startEditing() {
+    setEditTitle(task.title)
+    setEditDescription(task.description)
+    setEditDueDate(task.due_date ?? '')
+    setEditPriority(task.priority)
+    setEditCategory(task.category)
+    setEditSteps(task.steps ?? [])
+    setHasSteps((task.steps ?? []).length > 0)
+    setNewStepInput('')
+    setEditing(true)
+  }
+
+  function addNewStep() {
+    const text = newStepInput.trim()
+    if (!text) return
+    setEditSteps(prev => [...prev, { id: `step-${Date.now()}`, title: text, completed: false }])
+    setNewStepInput('')
+  }
+
+  function handleSave() {
+    if (!editTitle.trim() || !onEdit) return
+    const steps = hasSteps && editSteps.length > 0 ? editSteps : null
+    onEdit(task.id, {
+      title: editTitle.trim(),
+      description: editDescription.trim(),
+      due_date: editDueDate || null,
+      priority: editPriority,
+      category: editCategory,
+      steps,
+    })
+    setEditing(false)
+  }
+
   function handleMainClick() {
-    // If task is fully complete, undo it
     if (isCompleted) {
       setCompletionMsg('')
       onUncomplete(task.id)
       return
     }
-
-    // If animating, ignore rapid clicks
     if (animatingComplete) return
 
-    if (hasSteps && currentStep) {
-      // Complete current step
+    if (taskHasSteps && currentStep) {
       setShowRipple(true)
       setAnimatingComplete(true)
-
-      if (isLastStep) {
-        playComplete()
-      } else {
-        playStepComplete()
-      }
-
+      if (isLastStep) { playComplete() } else { playStepComplete() }
       if (shouldShowInsight()) {
-        setCompletionMsg(isLastStep
-          ? getCompletionMessage()
-          : `Step ${completedSteps + 1} of ${totalSteps} done.`)
+        setCompletionMsg(isLastStep ? getCompletionMessage() : `Step ${completedSteps + 1} of ${totalSteps} done.`)
       }
-
       setTimeout(() => {
         onCompleteStep(task.id)
         setShowRipple(false)
         setAnimatingComplete(false)
       }, 500)
     } else {
-      // Simple task
       playComplete()
       setShowRipple(true)
       setAnimatingComplete(true)
-
-      if (shouldShowInsight()) {
-        setCompletionMsg(getCompletionMessage())
-      }
-
+      if (shouldShowInsight()) { setCompletionMsg(getCompletionMessage()) }
       setTimeout(() => {
         onComplete(task.id)
         setShowRipple(false)
@@ -121,6 +148,131 @@ export default function TaskCard({ task, onComplete, onUncomplete, onCompleteSte
     onUncomplete(task.id)
   }
 
+  // ── Edit mode ──────────────────────────────────
+  if (editing) {
+    return (
+      <div
+        className="animate-reveal rounded-2xl border border-sage-200 bg-white p-5 space-y-3"
+        style={{ animationDelay: `${index * 150}ms` }}
+      >
+        <input
+          type="text"
+          value={editTitle}
+          onChange={e => setEditTitle(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition"
+          autoFocus
+        />
+        <textarea
+          value={editDescription}
+          onChange={e => setEditDescription(e.target.value)}
+          rows={2}
+          className="w-full px-3 py-2 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-sm focus:outline-none focus:ring-2 focus:ring-sage-400 transition resize-none"
+          placeholder="Notes"
+        />
+
+        {/* Steps toggle */}
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div
+            onClick={() => setHasSteps(!hasSteps)}
+            className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${hasSteps ? 'bg-sage-500' : 'bg-stone-200'}`}
+          >
+            <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${hasSteps ? 'translate-x-4' : ''}`} />
+          </div>
+          <span className="text-sm text-stone-600">Has steps</span>
+        </label>
+
+        {/* Steps editor */}
+        {hasSteps && (
+          <div className="space-y-2 pl-2 border-l-2 border-sage-200">
+            {editSteps.map((step, i) => (
+              <div key={step.id} className="flex items-center gap-2">
+                <span className={`text-xs w-5 text-right ${step.completed ? 'text-complete' : 'text-stone-400'}`}>
+                  {step.completed ? '✓' : `${i + 1}.`}
+                </span>
+                <input
+                  type="text"
+                  value={step.title}
+                  onChange={e => setEditSteps(prev => prev.map((s, j) => j === i ? { ...s, title: e.target.value } : s))}
+                  className={`flex-1 px-2 py-1 rounded-lg border border-stone-200 bg-white text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition ${step.completed ? 'line-through text-stone-400' : ''}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setEditSteps(prev => prev.filter((_, j) => j !== i))}
+                  className="text-stone-300 hover:text-terracotta transition text-sm"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-stone-400 w-5 text-right">{editSteps.length + 1}.</span>
+              <input
+                type="text"
+                value={newStepInput}
+                onChange={e => setNewStepInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addNewStep() } }}
+                className="flex-1 px-2 py-1 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-sm focus:outline-none focus:ring-1 focus:ring-sage-400 transition"
+                placeholder="Add a step..."
+              />
+              <button
+                type="button"
+                onClick={addNewStep}
+                disabled={!newStepInput.trim()}
+                className="text-sage-500 hover:text-sage-700 disabled:text-stone-300 transition text-lg font-medium"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2">
+          <input
+            type="date"
+            value={editDueDate}
+            onChange={e => setEditDueDate(e.target.value)}
+            className="px-2 py-1.5 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-xs focus:outline-none focus:ring-1 focus:ring-sage-400"
+          />
+          <select
+            value={editPriority}
+            onChange={e => setEditPriority(Number(e.target.value) as 1 | 2 | 3)}
+            className="px-2 py-1.5 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-xs focus:outline-none focus:ring-1 focus:ring-sage-400"
+          >
+            {PRIORITIES.map(p => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+          <select
+            value={editCategory}
+            onChange={e => setEditCategory(e.target.value)}
+            className="px-2 py-1.5 rounded-lg border border-stone-200 bg-sage-50 text-stone-800 text-xs focus:outline-none focus:ring-1 focus:ring-sage-400"
+          >
+            {CATEGORIES.map(c => (
+              <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setEditing(false)}
+            className="flex-1 py-2 rounded-xl border border-stone-200 text-stone-500 text-xs font-medium hover:bg-stone-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!editTitle.trim()}
+            className="flex-1 py-2 rounded-xl bg-sage-500 text-white text-xs font-medium hover:bg-sage-600 disabled:opacity-50 transition"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Display mode ──────────────────────────────────
   return (
     <div
       className={`animate-reveal rounded-2xl border p-5 transition-all duration-500 ${
@@ -143,7 +295,7 @@ export default function TaskCard({ task, onComplete, onUncomplete, onCompleteSte
                   ? 'bg-complete border-complete text-white scale-110'
                   : 'border-stone-300 hover:border-sage-500 hover:scale-110 hover:bg-sage-50'
             }`}
-            title={isCompleted ? 'Undo completion' : hasSteps && currentStep ? `Complete: ${currentStep.title}` : 'Complete'}
+            title={isCompleted ? 'Undo completion' : taskHasSteps && currentStep ? `Complete: ${currentStep.title}` : 'Complete'}
           >
             {(isCompleted || animatingComplete) && (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -164,20 +316,18 @@ export default function TaskCard({ task, onComplete, onUncomplete, onCompleteSte
           </p>
 
           {/* Current step display for multi-step tasks */}
-          {hasSteps && !isCompleted && currentStep && (
+          {taskHasSteps && !isCompleted && currentStep && (
             <div className="mt-2 pl-1">
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-xs text-stone-400">
                   Step {completedSteps + 1} of {totalSteps}
                 </span>
-                {/* Mini step progress bar */}
                 <div className="flex-1 h-1 bg-stone-100 rounded-full overflow-hidden max-w-20">
                   <div
                     className="h-full bg-sage-400 rounded-full transition-all duration-500"
                     style={{ width: `${(completedSteps / totalSteps) * 100}%` }}
                   />
                 </div>
-                {/* Undo last step button */}
                 {hasCompletedSteps && (
                   <button
                     onClick={handleUndoStep}
@@ -228,11 +378,35 @@ export default function TaskCard({ task, onComplete, onUncomplete, onCompleteSte
                 {dateText}
               </span>
               {onStartPomodoro && (
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center gap-1">
+                  {onEdit && (
+                    <button
+                      onClick={startEditing}
+                      className="p-1.5 rounded-lg text-stone-300 hover:text-stone-500 transition"
+                      title="Edit task"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                      </svg>
+                    </button>
+                  )}
                   <PomodoroButton taskTitle={task.title} onStart={onStartPomodoro} disabled={pomodoroActive} />
                 </div>
               )}
             </div>
+          )}
+
+          {/* Edit button for step tasks (shown below step display) */}
+          {!isCompleted && currentStep && onEdit && (
+            <button
+              onClick={startEditing}
+              className="mt-2 p-1 rounded text-stone-300 hover:text-stone-500 transition"
+              title="Edit task"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+              </svg>
+            </button>
           )}
         </div>
       </div>

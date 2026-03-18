@@ -5,10 +5,12 @@ interface Props {
   onLogout: () => void
   taskCount: number
   waitingCount: number
+  overdueWaitingCount?: number
 }
 
-export default function Header({ onLogout, taskCount, waitingCount }: Props) {
+export default function Header({ onLogout, taskCount, waitingCount, overdueWaitingCount = 0 }: Props) {
   const { pathname } = useLocation()
+  const isFocus = pathname === '/'
 
   const linkClass = (path: string) =>
     `px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
@@ -36,10 +38,15 @@ export default function Header({ onLogout, taskCount, waitingCount }: Props) {
               <span className="ml-1.5 text-xs text-stone-400">{taskCount}</span>
             )}
           </Link>
-          <Link to="/waiting" className={linkClass('/waiting')}>
+          <Link to="/waiting" className={`${linkClass('/waiting')} relative`}>
             Waiting
             {waitingCount > 0 && (
               <span className="ml-1.5 text-xs text-stone-400">{waitingCount}</span>
+            )}
+            {!isFocus && overdueWaitingCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-terracotta text-white text-[10px] font-bold flex items-center justify-center">
+                {overdueWaitingCount}
+              </span>
             )}
           </Link>
           <Link to="/pray" className={linkClass('/pray')}>Pray</Link>

@@ -9,8 +9,38 @@ interface Props {
   onDelete: (id: string) => void
 }
 
+function isOverdue(dueDate: string | null): boolean {
+  if (!dueDate) return false
+  const today = new Date().toLocaleDateString('en-CA')
+  return dueDate <= today
+}
+
+function formatReminderDate(dueDate: string | null): string {
+  if (!dueDate) return ''
+  const date = new Date(dueDate + 'T00:00:00')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diff = Math.floor((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  if (diff < 0) return `${Math.abs(diff)}d overdue`
+  if (diff === 0) return 'Follow up today'
+  if (diff === 1) return 'Tomorrow'
+  if (diff <= 7) return `In ${diff}d`
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 export default function WaitingView({ tasks, onReactivate, onComplete, onDelete }: Props) {
   const waitingTasks = tasks.filter(t => t.waiting)
+
+  // Sort: overdue first, then by due date ascending
+  const sorted = [...waitingTasks].sort((a, b) => {
+    const aOverdue = isOverdue(a.due_date)
+    const bOverdue = isOverdue(b.due_date)
+    if (aOverdue !== bOverdue) return aOverdue ? -1 : 1
+    if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date)
+    return 0
+  })
+
+  const overdueCount = waitingTasks.filter(t => isOverdue(t.due_date)).length
 
   return (
     <div className="space-y-4">
@@ -21,7 +51,18 @@ export default function WaitingView({ tasks, onReactivate, onComplete, onDelete 
         </p>
       </div>
 
-      {waitingTasks.length === 0 ? (
+      {overdueCount > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-terracotta/10 border border-terracotta/20">
+          <span className="w-5 h-5 rounded-full bg-terracotta text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+            {overdueCount}
+          </span>
+          <span className="text-xs text-terracotta font-medium">
+            {overdueCount === 1 ? 'item needs' : 'items need'} follow-up
+          </span>
+        </div>
+      )}
+
+      {sorted.length === 0 ? (
         <div className="text-center py-16">
           <div className="w-12 h-12 rounded-full bg-sage-100 flex items-center justify-center mx-auto mb-4">
             <svg className="w-6 h-6 text-sage-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -35,15 +76,19 @@ export default function WaitingView({ tasks, onReactivate, onComplete, onDelete 
         </div>
       ) : (
         <div className="space-y-1">
-          {waitingTasks.map(task => {
+          {sorted.map(task => {
             const emoji = CATEGORY_EMOJI[task.category as Category] ?? '\u{1F4CB}'
+            const overdue = isOverdue(task.due_date)
+            const reminderText = formatReminderDate(task.due_date)
             return (
               <div
                 key={task.id}
-                className="flex items-start gap-3 p-3 rounded-xl transition group hover:bg-white"
+                className={`flex items-start gap-3 p-3 rounded-xl transition group ${overdue ? 'bg-terracotta/5 hover:bg-terracotta/10' : 'hover:bg-white'}`}
               >
-                <div className="mt-0.5 w-5 h-5 rounded-full border-2 border-amber-300 bg-amber-50 flex-shrink-0 flex items-center justify-center">
-                  <svg className="w-3 h-3 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                  overdue ? 'border-terracotta bg-terracotta/10' : 'border-amber-300 bg-amber-50'
+                }`}>
+                  <svg className={`w-3 h-3 ${overdue ? 'text-terracotta' : 'text-amber-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" />
                   </svg>
                 </div>
@@ -54,6 +99,11 @@ export default function WaitingView({ tasks, onReactivate, onComplete, onDelete 
                   </p>
                   {task.description && (
                     <p className="text-xs text-stone-400 mt-0.5 line-clamp-1">{task.description}</p>
+                  )}
+                  {reminderText && (
+                    <p className={`text-xs mt-0.5 ${overdue ? 'text-terracotta font-medium' : 'text-stone-400'}`}>
+                      {reminderText}
+                    </p>
                   )}
                 </div>
 
@@ -88,10 +138,10 @@ export default function WaitingView({ tasks, onReactivate, onComplete, onDelete 
         </div>
       )}
 
-      {waitingTasks.length > 0 && (
+      {sorted.length > 0 && (
         <div className="text-center pt-2">
           <p className="text-xs text-stone-400">
-            {waitingTasks.length} item{waitingTasks.length !== 1 ? 's' : ''} waiting
+            {sorted.length} item{sorted.length !== 1 ? 's' : ''} waiting
           </p>
         </div>
       )}

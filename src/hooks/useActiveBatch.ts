@@ -151,11 +151,38 @@ export function useActiveBatch(tasks: Task[], enabledGrindCount: number = 0) {
     }
   }, [loading, batch, tasks, batchTasks, completedInBatch, enabledGrindCount])
 
+  // Refresh batch when tasks are edited — keep completed tasks pinned,
+  // re-rank incomplete slots with the best available candidates
+  const refreshBatch = useCallback(async () => {
+    if (!batch) return
+
+    const completedIds = batchTasks.filter(t => t.completed).map(t => t.id)
+    const effectiveSize = Math.max(0, BATCH_SIZE - enabledGrindCount)
+    const incompleteSlots = effectiveSize - completedIds.length
+
+    if (incompleteSlots <= 0) return
+
+    const ranked = rankTasks(tasks)
+    const completedSet = new Set(completedIds)
+    const newIncomplete = ranked.filter(t => !completedSet.has(t.id))
+    const fillIds = newIncomplete.slice(0, incompleteSlots).map(t => t.id)
+    const newBatchIds = [...completedIds, ...fillIds]
+
+    await supabase.from('active_batch').delete().eq('id', batch.id)
+    const { data } = await supabase
+      .from('active_batch')
+      .insert({ task_ids: newBatchIds, completed_task_ids: [] })
+      .select()
+      .single()
+    if (data) setBatch(data as ActiveBatch)
+  }, [batch, batchTasks, tasks, enabledGrindCount])
+
   return {
     batchTasks,
     completedInBatch,
     allCompleted,
     generateNewBatch,
+    refreshBatch,
     batchTaskIds,
     loading,
     hasBatch: !!batch,
