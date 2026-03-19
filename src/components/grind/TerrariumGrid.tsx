@@ -479,23 +479,24 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               <path key={i} d={t} stroke="rgba(125,118,105,0.12)" strokeWidth="4" fill="none" strokeLinecap="round" />
             ))}
             {/* Japanese tea bridge — plan view, CSS rotateX(55deg) makes it isometric */}
-            {/* Deck surface */}
-            <rect x={waterOverlay.bx - 20} y={waterOverlay.by - 7} width={40} height={14} rx={1.5} fill="rgba(145,72,42,0.20)" />
+            {/* Deck surface — solid warm wood */}
+            <rect x={waterOverlay.bx - 20} y={waterOverlay.by - 7} width={40} height={14} rx={1.5} fill="rgba(145,82,50,0.55)" />
+            <rect x={waterOverlay.bx - 19} y={waterOverlay.by - 6} width={38} height={12} rx={1} fill="rgba(165,95,60,0.45)" />
             {/* Front edge shadow (visible due to viewing angle) */}
-            <line x1={waterOverlay.bx - 20} y1={waterOverlay.by + 7} x2={waterOverlay.bx + 20} y2={waterOverlay.by + 7} stroke="rgba(110,48,26,0.16)" strokeWidth="2" strokeLinecap="round" />
+            <line x1={waterOverlay.bx - 20} y1={waterOverlay.by + 7} x2={waterOverlay.bx + 20} y2={waterOverlay.by + 7} stroke="rgba(90,38,18,0.40)" strokeWidth="2" strokeLinecap="round" />
             {/* Plank lines */}
-            <line x1={waterOverlay.bx - 12} y1={waterOverlay.by - 6} x2={waterOverlay.bx - 12} y2={waterOverlay.by + 6} stroke="rgba(100,42,22,0.08)" strokeWidth="0.5" />
-            <line x1={waterOverlay.bx - 4} y1={waterOverlay.by - 6} x2={waterOverlay.bx - 4} y2={waterOverlay.by + 6} stroke="rgba(100,42,22,0.08)" strokeWidth="0.5" />
-            <line x1={waterOverlay.bx + 4} y1={waterOverlay.by - 6} x2={waterOverlay.bx + 4} y2={waterOverlay.by + 6} stroke="rgba(100,42,22,0.08)" strokeWidth="0.5" />
-            <line x1={waterOverlay.bx + 12} y1={waterOverlay.by - 6} x2={waterOverlay.bx + 12} y2={waterOverlay.by + 6} stroke="rgba(100,42,22,0.08)" strokeWidth="0.5" />
+            <line x1={waterOverlay.bx - 12} y1={waterOverlay.by - 6} x2={waterOverlay.bx - 12} y2={waterOverlay.by + 6} stroke="rgba(80,35,15,0.18)" strokeWidth="0.6" />
+            <line x1={waterOverlay.bx - 4} y1={waterOverlay.by - 6} x2={waterOverlay.bx - 4} y2={waterOverlay.by + 6} stroke="rgba(80,35,15,0.18)" strokeWidth="0.6" />
+            <line x1={waterOverlay.bx + 4} y1={waterOverlay.by - 6} x2={waterOverlay.bx + 4} y2={waterOverlay.by + 6} stroke="rgba(80,35,15,0.18)" strokeWidth="0.6" />
+            <line x1={waterOverlay.bx + 12} y1={waterOverlay.by - 6} x2={waterOverlay.bx + 12} y2={waterOverlay.by + 6} stroke="rgba(80,35,15,0.18)" strokeWidth="0.6" />
             {/* Back railing — curves in -Y to appear as arch rising up in isometric */}
-            <path d={`M${waterOverlay.bx - 20},${waterOverlay.by - 7} Q${waterOverlay.bx},${waterOverlay.by - 10} ${waterOverlay.bx + 20},${waterOverlay.by - 7}`} stroke="rgba(115,52,30,0.30)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+            <path d={`M${waterOverlay.bx - 20},${waterOverlay.by - 7} Q${waterOverlay.bx},${waterOverlay.by - 10} ${waterOverlay.bx + 20},${waterOverlay.by - 7}`} stroke="rgba(100,42,22,0.55)" strokeWidth="1.8" fill="none" strokeLinecap="round" />
             {/* Front railing — straight (closer to viewer) */}
-            <line x1={waterOverlay.bx - 20} y1={waterOverlay.by + 7} x2={waterOverlay.bx + 20} y2={waterOverlay.by + 7} stroke="rgba(115,52,30,0.28)" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1={waterOverlay.bx - 20} y1={waterOverlay.by + 7} x2={waterOverlay.bx + 20} y2={waterOverlay.by + 7} stroke="rgba(100,42,22,0.50)" strokeWidth="1.5" strokeLinecap="round" />
             {/* Railing posts — extend in -Y so they appear vertical in isometric */}
-            <line x1={waterOverlay.bx - 16} y1={waterOverlay.by - 7.5} x2={waterOverlay.bx - 16} y2={waterOverlay.by - 10} stroke="rgba(115,52,30,0.24)" strokeWidth="1" strokeLinecap="round" />
-            <line x1={waterOverlay.bx} y1={waterOverlay.by - 7.5} x2={waterOverlay.bx} y2={waterOverlay.by - 10.5} stroke="rgba(115,52,30,0.24)" strokeWidth="1" strokeLinecap="round" />
-            <line x1={waterOverlay.bx + 16} y1={waterOverlay.by - 7.5} x2={waterOverlay.bx + 16} y2={waterOverlay.by - 10} stroke="rgba(115,52,30,0.24)" strokeWidth="1" strokeLinecap="round" />
+            <line x1={waterOverlay.bx - 16} y1={waterOverlay.by - 7.5} x2={waterOverlay.bx - 16} y2={waterOverlay.by - 10} stroke="rgba(100,42,22,0.45)" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1={waterOverlay.bx} y1={waterOverlay.by - 7.5} x2={waterOverlay.bx} y2={waterOverlay.by - 10.5} stroke="rgba(100,42,22,0.45)" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1={waterOverlay.bx + 16} y1={waterOverlay.by - 7.5} x2={waterOverlay.bx + 16} y2={waterOverlay.by - 10} stroke="rgba(100,42,22,0.45)" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
 
           {/* Cells */}
