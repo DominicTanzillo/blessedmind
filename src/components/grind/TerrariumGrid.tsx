@@ -32,6 +32,20 @@ function organicOffset(id: string): { dx: number; dy: number } {
 function distFromCorner(r: number, c: number, cr: number, cc: number): number {
   return Math.abs(r - cr) + Math.abs(c - cc)
 }
+// Smooth SVG path through waypoints (midpoint quadratic interpolation)
+function smoothPath(pts: [number, number][]): string {
+  if (pts.length < 2) return ''
+  const f = (n: number) => n.toFixed(1)
+  const d = [`M${f(pts[0][0])},${f(pts[0][1])}`]
+  if (pts.length === 2) { d.push(`L${f(pts[1][0])},${f(pts[1][1])}`); return d.join(' ') }
+  d.push(`L${f((pts[0][0] + pts[1][0]) / 2)},${f((pts[0][1] + pts[1][1]) / 2)}`)
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2
+    d.push(`Q${f(pts[i][0])},${f(pts[i][1])} ${f(mx)},${f(my)}`)
+  }
+  d.push(`L${f(pts[pts.length - 1][0])},${f(pts[pts.length - 1][1])}`)
+  return d.join(' ')
+}
 
 // ── Types ────────────────────────────────────────────────────
 type TooltipInfo =
@@ -48,7 +62,7 @@ type CellItem =
   | { kind: 'audit'; audit: TimeAudit; key: string }
   | { kind: 'prayer'; index: number; key: string }
 
-type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'river' | 'path' | 'bridge' | 'trail' | null
+type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | null
 
 interface Cell { item: CellItem | null; ground: GroundFeature }
 
@@ -203,80 +217,31 @@ function buildGarden(
     }
   }
 
-  // ── River + Path + Trails dividing garden into 4 sections ──
-  // River: smooth sinusoidal meander along column N/2
-  // Path: dark gravel walkway along row N/2
-  // Bridge: Japanese tea bridge where they cross
-  // Trails: light gravel branches from center into each quadrant
-  const half = Math.floor(side / 2)
-  const riverCells = new Set<string>()
-  const pathCells = new Set<string>()
-  const trailCells = new Set<string>()
-
-  // River: smooth S-curve meander (sine wave, ~1.5 cycles across grid)
-  for (let t = 0; t <= last; t++) {
-    const wobble = Math.round(Math.sin(t * Math.PI * 3 / side) * 1.2)
-    const c = Math.max(0, Math.min(last, half + wobble))
-    riverCells.add(`${t},${c}`)
-  }
-
-  // Main path: row ≈ half, very slight wobble
-  for (let t = 0; t <= last; t++) {
-    const ph = cellHash(half + 500, t)
-    const pWob = ph % 7 === 0 ? ((ph >> 3) % 2 === 0 ? 1 : -1) : 0
-    pathCells.add(`${Math.max(0, Math.min(last, half + pWob))},${t}`)
-  }
-
-  // Branch trails: light paths from center toward each quadrant's interior
-  const trailLen = Math.max(1, Math.min(3, Math.floor(side / 4)))
-  for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
-    for (let step = 1; step <= trailLen; step++) {
-      const r = half + dr * step
-      const c = half + dc * step
-      if (r >= 0 && r < side && c >= 0 && c < side) {
-        trailCells.add(`${r},${c}`)
-      }
-    }
-  }
-
-  // ── Ground features ──
+  // ── Ground features (zone-specific cover) ──
+  // River, path, bridge, and trails are rendered as a single continuous
+  // SVG overlay in the component — not per-cell ground features.
   for (let r = 0; r < side; r++) {
     for (let c = 0; c < side; c++) {
       if (grid[r][c].item) continue
-      const key = `${r},${c}`
-      const onRiver = riverCells.has(key)
-      const onPath = pathCells.has(key)
+      const h = cellHash(r, c)
+      const dBack = distFromCorner(r, c, BACK.r, BACK.c)
+      const dFront = distFromCorner(r, c, FRONT.r, FRONT.c)
+      const dLeft = distFromCorner(r, c, LEFT.r, LEFT.c)
+      const dRight = distFromCorner(r, c, RIGHT.r, RIGHT.c)
+      const minDist = Math.min(dBack, dFront, dLeft, dRight)
 
-      if (onRiver && onPath) {
-        grid[r][c].ground = 'bridge'
-      } else if (onRiver) {
-        grid[r][c].ground = 'river'
-      } else if (onPath) {
-        grid[r][c].ground = 'path'
-      } else if (trailCells.has(key)) {
-        grid[r][c].ground = 'trail'
+      if (minDist === dLeft) {
+        if (h % 6 === 0) grid[r][c].ground = 'clover'
+        else if (h % 13 === 0) grid[r][c].ground = 'pebble'
+      } else if (minDist === dRight) {
+        if (h % 5 === 0) grid[r][c].ground = 'gravel'
+        else if (h % 11 === 0) grid[r][c].ground = 'stone'
+      } else if (minDist === dFront) {
+        if (h % 5 === 0) grid[r][c].ground = 'moss'
+        else if (h % 9 === 0) grid[r][c].ground = 'wildflower'
       } else {
-        // Zone-specific ground cover
-        const h = cellHash(r, c)
-        const dBack = distFromCorner(r, c, BACK.r, BACK.c)
-        const dFront = distFromCorner(r, c, FRONT.r, FRONT.c)
-        const dLeft = distFromCorner(r, c, LEFT.r, LEFT.c)
-        const dRight = distFromCorner(r, c, RIGHT.r, RIGHT.c)
-        const minDist = Math.min(dBack, dFront, dLeft, dRight)
-
-        if (minDist === dLeft) {
-          if (h % 6 === 0) grid[r][c].ground = 'clover'
-          else if (h % 13 === 0) grid[r][c].ground = 'pebble'
-        } else if (minDist === dRight) {
-          if (h % 5 === 0) grid[r][c].ground = 'gravel'
-          else if (h % 11 === 0) grid[r][c].ground = 'stone'
-        } else if (minDist === dFront) {
-          if (h % 5 === 0) grid[r][c].ground = 'moss'
-          else if (h % 9 === 0) grid[r][c].ground = 'wildflower'
-        } else {
-          if (h % 7 === 0) grid[r][c].ground = 'moss'
-          else if (h % 17 === 0) grid[r][c].ground = 'mushroom'
-        }
+        if (h % 7 === 0) grid[r][c].ground = 'moss'
+        else if (h % 17 === 0) grid[r][c].ground = 'mushroom'
       }
     }
   }
@@ -288,56 +253,8 @@ function buildGarden(
 function GroundSVG({ feature }: { feature: GroundFeature }) {
   if (!feature) return null
   const s = { position: 'absolute' as const, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
-  const w = { position: 'absolute' as const, left: 0, top: 0 }
 
   switch (feature) {
-    // River — water channel flowing vertically in grid (parallel to diamond edge on screen)
-    // Vertically elongated ellipses connect between cells above/below
-    case 'river': return (
-      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none" overflow="visible">
-        <ellipse cx="22" cy="22" rx="6" ry="24" fill="rgba(65,130,175,0.14)" />
-        <ellipse cx="22" cy="22" rx="3.5" ry="20" fill="rgba(85,155,195,0.09)" />
-        <ellipse cx="21" cy="20" rx="1.5" ry="10" fill="rgba(130,190,225,0.06)" />
-      </svg>
-    )
-    // Main path — dark gravel walkway (horizontal in grid, parallel to diamond edge on screen)
-    case 'path': return (
-      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none" overflow="visible">
-        <ellipse cx="22" cy="22" rx="24" ry="5.5" fill="rgba(95,88,75,0.24)" />
-        <ellipse cx="22" cy="22" rx="20" ry="3.5" fill="rgba(115,108,95,0.16)" />
-        <ellipse cx="12" cy="22" rx="2" ry="1.2" fill="rgba(105,98,85,0.14)" />
-        <ellipse cx="22" cy="21" rx="1.8" ry="1" fill="rgba(105,98,85,0.12)" />
-        <ellipse cx="32" cy="23" rx="2" ry="1.3" fill="rgba(105,98,85,0.14)" />
-        <ellipse cx="17" cy="23.5" rx="1.4" ry="0.9" fill="rgba(105,98,85,0.10)" />
-        <ellipse cx="27" cy="21" rx="1.5" ry="1" fill="rgba(105,98,85,0.10)" />
-      </svg>
-    )
-    // Japanese tea bridge — arched wood bridge over river
-    case 'bridge': return (
-      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none" overflow="visible">
-        {/* River flowing under */}
-        <ellipse cx="22" cy="22" rx="5" ry="24" fill="rgba(65,130,175,0.12)" />
-        {/* Arched deck — warm reddish-brown wood */}
-        <path d="M2,28 Q22,14 42,28" fill="rgba(150,65,40,0.22)" />
-        <path d="M2,28 Q22,15 42,28" stroke="rgba(110,45,25,0.38)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-        {/* Railing arc */}
-        <path d="M6,26 Q22,12 38,26" stroke="rgba(110,45,25,0.28)" strokeWidth="0.8" fill="none" />
-        {/* Posts */}
-        <line x1="10" y1="24.5" x2="10" y2="28" stroke="rgba(110,45,25,0.32)" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="22" y1="14.5" x2="22" y2="20" stroke="rgba(110,45,25,0.32)" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="34" y1="24.5" x2="34" y2="28" stroke="rgba(110,45,25,0.32)" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-    )
-    // Trail — light gravel branch path leading into a quadrant
-    case 'trail': return (
-      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
-        <ellipse cx="22" cy="22" rx="10" ry="8" fill="rgba(140,132,118,0.10)" />
-        <ellipse cx="20" cy="21" rx="6" ry="5" fill="rgba(150,142,128,0.06)" />
-        <ellipse cx="18" cy="22" rx="1.5" ry="1" fill="rgba(135,128,115,0.08)" />
-        <ellipse cx="25" cy="21" rx="1.3" ry="0.9" fill="rgba(135,128,115,0.07)" />
-        <ellipse cx="22" cy="24" rx="1.2" ry="0.8" fill="rgba(135,128,115,0.06)" />
-      </svg>
-    )
     case 'stone': return (
       <svg style={s} width="18" height="12" viewBox="0 0 18 12" fill="none">
         <ellipse cx="9" cy="6" rx="7" ry="4.5" fill="rgba(145,138,125,0.18)" />
@@ -407,6 +324,42 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
   const [grid, setGrid] = useState(layout.grid)
   const [side, setSide] = useState(layout.side)
   useEffect(() => { setGrid(layout.grid); setSide(layout.side) }, [layout])
+
+  // ── River + Path overlay (single continuous SVG, not per-cell) ──
+  const waterOverlay = useMemo(() => {
+    const gPx = side * CELL
+    const hC = Math.floor(side / 2) * CELL + CELL / 2
+    const hR = Math.floor(side / 2) * CELL + CELL / 2
+
+    // River: smooth S-curve meander (~1.25 cycles)
+    const rPts: [number, number][] = []
+    for (let row = 0; row <= side; row++) {
+      const t = row / side
+      const wobble = Math.sin(t * Math.PI * 2.5) * CELL * 1.0
+      rPts.push([hC + wobble, row * CELL])
+    }
+    const riverD = smoothPath(rPts)
+
+    // Main path: gentle single wave
+    const pPts: [number, number][] = []
+    for (let col = 0; col <= side; col++) {
+      const t = col / side
+      const wobble = Math.sin(t * Math.PI * 2) * CELL * 0.35
+      pPts.push([col * CELL, hR + wobble])
+    }
+    const pathD = smoothPath(pPts)
+
+    // Branch trails: gentle curves from center into each quadrant
+    const tLen = Math.min(CELL * 2.5, gPx * 0.22)
+    const trails = [
+      `M${hC - CELL * 0.3},${hR} Q${hC - tLen * 0.5},${hR - tLen * 0.4} ${hC - tLen * 0.7},${hR - tLen * 0.7}`,
+      `M${hC + CELL * 0.3},${hR} Q${hC + tLen * 0.5},${hR - tLen * 0.4} ${hC + tLen * 0.7},${hR - tLen * 0.7}`,
+      `M${hC - CELL * 0.3},${hR} Q${hC - tLen * 0.5},${hR + tLen * 0.4} ${hC - tLen * 0.7},${hR + tLen * 0.7}`,
+      `M${hC + CELL * 0.3},${hR} Q${hC + tLen * 0.5},${hR + tLen * 0.4} ${hC + tLen * 0.7},${hR + tLen * 0.7}`,
+    ]
+
+    return { gPx, riverD, pathD, trails, bx: hC, by: hR }
+  }, [side])
 
   // ── Drag (desktop only) ──────────────────────────────────
   const dragSrc = useRef<{ r: number; c: number; key: string } | null>(null)
@@ -486,6 +439,28 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
             background: 'linear-gradient(135deg, #bcc5aa 0%, #a3b08e 30%, #8aad7d 50%, #95a383 80%, #8a9472 100%)',
             boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
           }} />
+
+          {/* River + Path + Bridge overlay (continuous SVG paths) */}
+          <svg className="absolute" style={{ left: 0, top: 0 }} width={gridPx} height={gridPx} viewBox={`0 0 ${gridPx} ${gridPx}`} fill="none">
+            {/* River — layered strokes for water depth */}
+            <path d={waterOverlay.riverD} stroke="rgba(65,130,175,0.18)" strokeWidth="10" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={waterOverlay.riverD} stroke="rgba(85,155,195,0.10)" strokeWidth="5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={waterOverlay.riverD} stroke="rgba(130,190,225,0.06)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            {/* Main path — dark gravel walkway */}
+            <path d={waterOverlay.pathD} stroke="rgba(80,72,58,0.22)" strokeWidth="8" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <path d={waterOverlay.pathD} stroke="rgba(100,92,78,0.14)" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            {/* Branch trails into each quadrant */}
+            {waterOverlay.trails.map((t, i) => (
+              <path key={i} d={t} stroke="rgba(125,118,105,0.12)" strokeWidth="4" fill="none" strokeLinecap="round" />
+            ))}
+            {/* Japanese tea bridge — arched wood over river */}
+            <path d={`M${waterOverlay.bx - 20},${waterOverlay.by + 3} Q${waterOverlay.bx},${waterOverlay.by - 14} ${waterOverlay.bx + 20},${waterOverlay.by + 3}`} fill="rgba(140,65,38,0.18)" />
+            <path d={`M${waterOverlay.bx - 20},${waterOverlay.by + 3} Q${waterOverlay.bx},${waterOverlay.by - 12} ${waterOverlay.bx + 20},${waterOverlay.by + 3}`} stroke="rgba(100,42,22,0.32)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+            <path d={`M${waterOverlay.bx - 16},${waterOverlay.by + 1} Q${waterOverlay.bx},${waterOverlay.by - 16} ${waterOverlay.bx + 16},${waterOverlay.by + 1}`} stroke="rgba(100,42,22,0.22)" strokeWidth="0.7" fill="none" />
+            <line x1={waterOverlay.bx - 12} y1={waterOverlay.by - 2} x2={waterOverlay.bx - 12} y2={waterOverlay.by + 3} stroke="rgba(100,42,22,0.26)" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1={waterOverlay.bx} y1={waterOverlay.by - 14} x2={waterOverlay.bx} y2={waterOverlay.by - 5} stroke="rgba(100,42,22,0.26)" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1={waterOverlay.bx + 12} y1={waterOverlay.by - 2} x2={waterOverlay.bx + 12} y2={waterOverlay.by + 3} stroke="rgba(100,42,22,0.26)" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
 
           {/* Cells */}
           {grid.map((row, r) => row.map((cell, c) => {
