@@ -48,7 +48,7 @@ type CellItem =
   | { kind: 'audit'; audit: TimeAudit; key: string }
   | { kind: 'prayer'; index: number; key: string }
 
-type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'stream-d' | 'stream-a' | 'confluence' | 'bridge' | null
+type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'river' | 'path' | 'bridge' | null
 
 interface Cell { item: CellItem | null; ground: GroundFeature }
 
@@ -203,24 +203,24 @@ function buildGarden(
     }
   }
 
-  // ── Waterway paths (decorative only — items always have priority) ──
-  // Two streams follow the grid diagonals, forming a + cross on screen.
-  // Computed AFTER items so water flows around placed items.
-  const diagMain = new Set<string>() // BACK→FRONT diagonal (vertical on screen)
-  const diagAnti = new Set<string>() // LEFT→RIGHT anti-diagonal (horizontal on screen)
+  // ── River + Path dividing garden into 4 sections ──
+  // River flows along column N/2 (vertical in grid → parallel to diamond edge on screen)
+  // Pebble path runs along row N/2 (horizontal in grid → parallel to other diamond edge)
+  // Bridge where they cross. Both are decorative — items always win.
+  const half = Math.floor(side / 2)
+  const riverCells = new Set<string>()
+  const pathCells = new Set<string>()
 
-  for (let t = 1; t < last; t++) {
-    // Anti-diagonal: LEFT(last,0) → RIGHT(0,last)
-    const ah = cellHash(last - t, t + 200)
-    const aWob = ah % 5 === 0 ? ((ah >> 3) % 2 === 0 ? 1 : -1) : 0
-    const ar = Math.max(1, Math.min(last - 1, last - t + aWob))
-    diagAnti.add(`${ar},${Math.max(1, Math.min(last - 1, t))}`)
+  for (let t = 0; t <= last; t++) {
+    // River: column ≈ half, slight wobble for organic feel
+    const rh = cellHash(t, half + 500)
+    const rWob = rh % 5 === 0 ? ((rh >> 3) % 2 === 0 ? 1 : -1) : 0
+    riverCells.add(`${t},${Math.max(0, Math.min(last, half + rWob))}`)
 
-    // Main diagonal: BACK(0,0) → FRONT(last,last)
-    const mh = cellHash(t + 300, t)
-    const mWob = mh % 5 === 0 ? ((mh >> 3) % 2 === 0 ? 1 : -1) : 0
-    const mc = Math.max(1, Math.min(last - 1, t + mWob))
-    diagMain.add(`${Math.max(1, Math.min(last - 1, t))},${mc}`)
+    // Path: row ≈ half, slight wobble
+    const ph = cellHash(half + 500, t)
+    const pWob = ph % 5 === 0 ? ((ph >> 3) % 2 === 0 ? 1 : -1) : 0
+    pathCells.add(`${Math.max(0, Math.min(last, half + pWob))},${t}`)
   }
 
   // ── Ground features ──
@@ -228,16 +228,15 @@ function buildGarden(
     for (let c = 0; c < side; c++) {
       if (grid[r][c].item) continue
       const key = `${r},${c}`
-      const onMain = diagMain.has(key)
-      const onAnti = diagAnti.has(key)
+      const onRiver = riverCells.has(key)
+      const onPath = pathCells.has(key)
 
-      // Water features (streams flow around items)
-      if (onMain && onAnti) {
-        grid[r][c].ground = 'confluence'
-      } else if (onMain) {
-        grid[r][c].ground = cellHash(r, c) % 5 === 0 ? 'bridge' : 'stream-d'
-      } else if (onAnti) {
-        grid[r][c].ground = cellHash(r, c) % 5 === 0 ? 'bridge' : 'stream-a'
+      if (onRiver && onPath) {
+        grid[r][c].ground = 'bridge'
+      } else if (onRiver) {
+        grid[r][c].ground = 'river'
+      } else if (onPath) {
+        grid[r][c].ground = 'path'
       } else {
         // Zone-specific ground cover
         const h = cellHash(r, c)
@@ -274,39 +273,36 @@ function GroundSVG({ feature }: { feature: GroundFeature }) {
   const w = { position: 'absolute' as const, left: 0, top: 0 }
 
   switch (feature) {
-    // Stream along main diagonal (NW→SE in grid, appears vertical on screen)
-    // Elongated ellipses rotated 45° so adjacent cells' streams connect
-    case 'stream-d': return (
-      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
-        <ellipse cx="22" cy="22" rx="30" ry="6" fill="rgba(65,130,175,0.14)" transform="rotate(45 22 22)" />
-        <ellipse cx="22" cy="22" rx="24" ry="3.5" fill="rgba(85,155,195,0.09)" transform="rotate(45 22 22)" />
-        <ellipse cx="20" cy="20" rx="12" ry="1.5" fill="rgba(130,190,225,0.06)" transform="rotate(45 22 22)" />
+    // River — water channel flowing vertically in grid (parallel to diamond edge on screen)
+    // Vertically elongated ellipses connect between cells above/below
+    case 'river': return (
+      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none" overflow="visible">
+        <ellipse cx="22" cy="22" rx="6" ry="24" fill="rgba(65,130,175,0.14)" />
+        <ellipse cx="22" cy="22" rx="3.5" ry="20" fill="rgba(85,155,195,0.09)" />
+        <ellipse cx="21" cy="20" rx="1.5" ry="10" fill="rgba(130,190,225,0.06)" />
       </svg>
     )
-    // Stream along anti-diagonal (SW→NE in grid, appears horizontal on screen)
-    case 'stream-a': return (
-      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
-        <ellipse cx="22" cy="22" rx="30" ry="6" fill="rgba(65,130,175,0.14)" transform="rotate(-45 22 22)" />
-        <ellipse cx="22" cy="22" rx="24" ry="3.5" fill="rgba(85,155,195,0.09)" transform="rotate(-45 22 22)" />
-        <ellipse cx="24" cy="20" rx="12" ry="1.5" fill="rgba(130,190,225,0.06)" transform="rotate(-45 22 22)" />
+    // Pebble path — gravel walkway running horizontally in grid (parallel to other diamond edge)
+    // Horizontally elongated ellipses connect between cells left/right
+    case 'path': return (
+      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none" overflow="visible">
+        <ellipse cx="22" cy="22" rx="24" ry="5" fill="rgba(155,148,135,0.14)" />
+        <ellipse cx="22" cy="22" rx="20" ry="3" fill="rgba(170,163,150,0.08)" />
+        <ellipse cx="14" cy="22" rx="2" ry="1.2" fill="rgba(145,138,125,0.1)" />
+        <ellipse cx="22" cy="21" rx="1.8" ry="1" fill="rgba(145,138,125,0.08)" />
+        <ellipse cx="30" cy="23" rx="2" ry="1.3" fill="rgba(145,138,125,0.1)" />
       </svg>
     )
-    // Where both streams cross — small pool with both flow directions
-    case 'confluence': return (
-      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
-        <ellipse cx="22" cy="22" rx="30" ry="5" fill="rgba(65,130,175,0.10)" transform="rotate(45 22 22)" />
-        <ellipse cx="22" cy="22" rx="30" ry="5" fill="rgba(65,130,175,0.10)" transform="rotate(-45 22 22)" />
-        <ellipse cx="22" cy="22" rx="9" ry="7" fill="rgba(55,120,170,0.12)" />
-        <ellipse cx="20" cy="20" rx="4.5" ry="3" fill="rgba(85,155,195,0.08)" />
-      </svg>
-    )
-    // Stepping stone bridge over water
+    // Bridge — stepping stone where river crosses under path
     case 'bridge': return (
-      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
-        <ellipse cx="22" cy="22" rx="28" ry="3.5" fill="rgba(65,130,175,0.07)" transform="rotate(45 22 22)" />
-        <ellipse cx="22" cy="22" rx="28" ry="3.5" fill="rgba(65,130,175,0.07)" transform="rotate(-45 22 22)" />
-        <ellipse cx="22" cy="22" rx="13" ry="9" fill="rgba(155,148,135,0.2)" />
-        <ellipse cx="21" cy="21" rx="9.5" ry="6.5" fill="rgba(170,163,150,0.14)" />
+      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none" overflow="visible">
+        {/* River flowing under */}
+        <ellipse cx="22" cy="22" rx="5" ry="24" fill="rgba(65,130,175,0.10)" />
+        {/* Path continuing through */}
+        <ellipse cx="22" cy="22" rx="24" ry="4" fill="rgba(155,148,135,0.10)" />
+        {/* Bridge stone */}
+        <ellipse cx="22" cy="22" rx="14" ry="10" fill="rgba(160,155,140,0.20)" />
+        <ellipse cx="21" cy="21" rx="10" ry="7" fill="rgba(175,168,155,0.14)" />
         <ellipse cx="19" cy="19" rx="4" ry="2.5" fill="rgba(185,178,165,0.08)" />
       </svg>
     )
