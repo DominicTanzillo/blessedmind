@@ -134,17 +134,25 @@ function buildGarden(
   }
 
   // Sort cells by distance from a corner (for zone placement)
-  function cellsByCorner(corner: { r: number; c: number }): [number, number][] {
+  function cellsByCorner(corner: { r: number; c: number }, side: number): [number, number][] {
     const cells: [number, number][] = []
     for (let r = 0; r < side; r++) for (let c = 0; c < side; c++) cells.push([r, c])
-    cells.sort((a, b) => distFromCorner(a[0], a[1], corner.r, corner.c) - distFromCorner(b[0], b[1], corner.r, corner.c))
+    cells.sort((a, b) => {
+      const da = Math.sqrt((a[0] - corner.r) ** 2 + (a[1] - corner.c) ** 2)
+      const db = Math.sqrt((b[0] - corner.r) ** 2 + (b[1] - corner.c) ** 2)
+      if (Math.abs(da - db) > 0.7) return da - db
+      // Same distance band: order by angle for spiral
+      const aa = Math.atan2(a[0] - corner.r, a[1] - corner.c)
+      const ab = Math.atan2(b[0] - corner.r, b[1] - corner.c)
+      return aa - ab
+    })
     return cells
   }
 
   // ── Habits → BACK corner (0,0) ──
   const activeHabits = allHabits.filter(g => !g.retired)
   const retiredHabits = allHabits.filter(g => g.retired)
-  const habitCells = cellsByCorner(BACK)
+  const habitCells = cellsByCorner(BACK, side)
 
   for (const g of [...activeHabits, ...retiredHabits]) {
     const key = `habit:${g.id}`
@@ -157,7 +165,7 @@ function buildGarden(
   }
 
   // ── Prayers → LEFT corner (N,0) ──
-  const prayerCells = cellsByCorner(LEFT)
+  const prayerCells = cellsByCorner(LEFT, side)
   for (let i = 0; i < prayerCount; i++) {
     const key = `prayer:${i}`
     const sv = saved[key]
@@ -170,7 +178,7 @@ function buildGarden(
   // ── Trophies + audits → RIGHT corner (0,N) ──
   const sortedTrophies = [...trophies].sort((a, b) => new Date(a.completed_at!).getTime() - new Date(b.completed_at!).getTime())
   const sortedAudits = [...audits].sort((a, b) => new Date(a.completed_at!).getTime() - new Date(b.completed_at!).getTime())
-  const rightCells = cellsByCorner(RIGHT)
+  const rightCells = cellsByCorner(RIGHT, side)
   const rightItems: CellItem[] = [
     ...sortedTrophies.map(t => ({ kind: 'trophy' as const, task: t, key: `trophy:${t.id}` })),
     ...sortedAudits.map(a => ({ kind: 'audit' as const, audit: a, key: `audit:${a.id}` })),
@@ -185,7 +193,7 @@ function buildGarden(
 
   // ── Pomodoros → FRONT corner (N,N) ──
   const sortedPomos = [...pomodoros].sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime())
-  const frontCells = cellsByCorner(FRONT)
+  const frontCells = cellsByCorner(FRONT, side)
   for (const p of sortedPomos) {
     const key = `pomodoro:${p.id}`
     const sv = saved[key]
@@ -443,7 +451,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                     className={!isMobile ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                     style={{
                       position: 'absolute', left: '50%', top: '50%',
-                      transform: 'translateZ(6px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -85%)',
+                      transform: 'translateZ(3px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -85%)',
                       transformOrigin: '0 0', transformStyle: 'preserve-3d', pointerEvents: 'auto',
                     }}
                     draggable={!isMobile}
@@ -462,10 +470,10 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
             // ── 1x1 items — lifted well above ground ──
             const { dx, dy } = organicOffset(item.key)
             const cfg = {
-              pomodoro: { lift: '-80%', z: 8, sz: 42 },
-              trophy:   { lift: '-90%', z: 10, sz: 40 },
-              audit:    { lift: '-85%', z: 10, sz: 40 },
-              prayer:   { lift: '-75%', z: 6, sz: 38 },
+              pomodoro: { lift: '-85%', z: 3, sz: 42 },
+              trophy:   { lift: '-85%', z: 3, sz: 40 },
+              audit:    { lift: '-85%', z: 3, sz: 40 },
+              prayer:   { lift: '-82%', z: 3, sz: 38 },
             }[item.kind]
 
             return (
