@@ -48,7 +48,7 @@ type CellItem =
   | { kind: 'audit'; audit: TimeAudit; key: string }
   | { kind: 'prayer'; index: number; key: string }
 
-type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'river' | 'path' | 'bridge' | null
+type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'river' | 'path' | 'bridge' | 'trail' | null
 
 interface Cell { item: CellItem | null; ground: GroundFeature }
 
@@ -203,24 +203,40 @@ function buildGarden(
     }
   }
 
-  // ── River + Path dividing garden into 4 sections ──
-  // River flows along column N/2 (vertical in grid → parallel to diamond edge on screen)
-  // Pebble path runs along row N/2 (horizontal in grid → parallel to other diamond edge)
-  // Bridge where they cross. Both are decorative — items always win.
+  // ── River + Path + Trails dividing garden into 4 sections ──
+  // River: smooth sinusoidal meander along column N/2
+  // Path: dark gravel walkway along row N/2
+  // Bridge: Japanese tea bridge where they cross
+  // Trails: light gravel branches from center into each quadrant
   const half = Math.floor(side / 2)
   const riverCells = new Set<string>()
   const pathCells = new Set<string>()
+  const trailCells = new Set<string>()
 
+  // River: smooth S-curve meander (sine wave, ~1.5 cycles across grid)
   for (let t = 0; t <= last; t++) {
-    // River: column ≈ half, slight wobble for organic feel
-    const rh = cellHash(t, half + 500)
-    const rWob = rh % 5 === 0 ? ((rh >> 3) % 2 === 0 ? 1 : -1) : 0
-    riverCells.add(`${t},${Math.max(0, Math.min(last, half + rWob))}`)
+    const wobble = Math.round(Math.sin(t * Math.PI * 3 / side) * 1.2)
+    const c = Math.max(0, Math.min(last, half + wobble))
+    riverCells.add(`${t},${c}`)
+  }
 
-    // Path: row ≈ half, slight wobble
+  // Main path: row ≈ half, very slight wobble
+  for (let t = 0; t <= last; t++) {
     const ph = cellHash(half + 500, t)
-    const pWob = ph % 5 === 0 ? ((ph >> 3) % 2 === 0 ? 1 : -1) : 0
+    const pWob = ph % 7 === 0 ? ((ph >> 3) % 2 === 0 ? 1 : -1) : 0
     pathCells.add(`${Math.max(0, Math.min(last, half + pWob))},${t}`)
+  }
+
+  // Branch trails: light paths from center toward each quadrant's interior
+  const trailLen = Math.max(1, Math.min(3, Math.floor(side / 4)))
+  for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+    for (let step = 1; step <= trailLen; step++) {
+      const r = half + dr * step
+      const c = half + dc * step
+      if (r >= 0 && r < side && c >= 0 && c < side) {
+        trailCells.add(`${r},${c}`)
+      }
+    }
   }
 
   // ── Ground features ──
@@ -237,6 +253,8 @@ function buildGarden(
         grid[r][c].ground = 'river'
       } else if (onPath) {
         grid[r][c].ground = 'path'
+      } else if (trailCells.has(key)) {
+        grid[r][c].ground = 'trail'
       } else {
         // Zone-specific ground cover
         const h = cellHash(r, c)
@@ -282,28 +300,42 @@ function GroundSVG({ feature }: { feature: GroundFeature }) {
         <ellipse cx="21" cy="20" rx="1.5" ry="10" fill="rgba(130,190,225,0.06)" />
       </svg>
     )
-    // Pebble path — gravel walkway running horizontally in grid (parallel to other diamond edge)
-    // Horizontally elongated ellipses connect between cells left/right
+    // Main path — dark gravel walkway (horizontal in grid, parallel to diamond edge on screen)
     case 'path': return (
       <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none" overflow="visible">
-        <ellipse cx="22" cy="22" rx="24" ry="5" fill="rgba(155,148,135,0.14)" />
-        <ellipse cx="22" cy="22" rx="20" ry="3" fill="rgba(170,163,150,0.08)" />
-        <ellipse cx="14" cy="22" rx="2" ry="1.2" fill="rgba(145,138,125,0.1)" />
-        <ellipse cx="22" cy="21" rx="1.8" ry="1" fill="rgba(145,138,125,0.08)" />
-        <ellipse cx="30" cy="23" rx="2" ry="1.3" fill="rgba(145,138,125,0.1)" />
+        <ellipse cx="22" cy="22" rx="24" ry="5.5" fill="rgba(95,88,75,0.24)" />
+        <ellipse cx="22" cy="22" rx="20" ry="3.5" fill="rgba(115,108,95,0.16)" />
+        <ellipse cx="12" cy="22" rx="2" ry="1.2" fill="rgba(105,98,85,0.14)" />
+        <ellipse cx="22" cy="21" rx="1.8" ry="1" fill="rgba(105,98,85,0.12)" />
+        <ellipse cx="32" cy="23" rx="2" ry="1.3" fill="rgba(105,98,85,0.14)" />
+        <ellipse cx="17" cy="23.5" rx="1.4" ry="0.9" fill="rgba(105,98,85,0.10)" />
+        <ellipse cx="27" cy="21" rx="1.5" ry="1" fill="rgba(105,98,85,0.10)" />
       </svg>
     )
-    // Bridge — stepping stone where river crosses under path
+    // Japanese tea bridge — arched wood bridge over river
     case 'bridge': return (
       <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none" overflow="visible">
         {/* River flowing under */}
-        <ellipse cx="22" cy="22" rx="5" ry="24" fill="rgba(65,130,175,0.10)" />
-        {/* Path continuing through */}
-        <ellipse cx="22" cy="22" rx="24" ry="4" fill="rgba(155,148,135,0.10)" />
-        {/* Bridge stone */}
-        <ellipse cx="22" cy="22" rx="14" ry="10" fill="rgba(160,155,140,0.20)" />
-        <ellipse cx="21" cy="21" rx="10" ry="7" fill="rgba(175,168,155,0.14)" />
-        <ellipse cx="19" cy="19" rx="4" ry="2.5" fill="rgba(185,178,165,0.08)" />
+        <ellipse cx="22" cy="22" rx="5" ry="24" fill="rgba(65,130,175,0.12)" />
+        {/* Arched deck — warm reddish-brown wood */}
+        <path d="M2,28 Q22,14 42,28" fill="rgba(150,65,40,0.22)" />
+        <path d="M2,28 Q22,15 42,28" stroke="rgba(110,45,25,0.38)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+        {/* Railing arc */}
+        <path d="M6,26 Q22,12 38,26" stroke="rgba(110,45,25,0.28)" strokeWidth="0.8" fill="none" />
+        {/* Posts */}
+        <line x1="10" y1="24.5" x2="10" y2="28" stroke="rgba(110,45,25,0.32)" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="22" y1="14.5" x2="22" y2="20" stroke="rgba(110,45,25,0.32)" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="34" y1="24.5" x2="34" y2="28" stroke="rgba(110,45,25,0.32)" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    )
+    // Trail — light gravel branch path leading into a quadrant
+    case 'trail': return (
+      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
+        <ellipse cx="22" cy="22" rx="10" ry="8" fill="rgba(140,132,118,0.10)" />
+        <ellipse cx="20" cy="21" rx="6" ry="5" fill="rgba(150,142,128,0.06)" />
+        <ellipse cx="18" cy="22" rx="1.5" ry="1" fill="rgba(135,128,115,0.08)" />
+        <ellipse cx="25" cy="21" rx="1.3" ry="0.9" fill="rgba(135,128,115,0.07)" />
+        <ellipse cx="22" cy="24" rx="1.2" ry="0.8" fill="rgba(135,128,115,0.06)" />
       </svg>
     )
     case 'stone': return (
