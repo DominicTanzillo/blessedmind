@@ -48,7 +48,7 @@ type CellItem =
   | { kind: 'audit'; audit: TimeAudit; key: string }
   | { kind: 'prayer'; index: number; key: string }
 
-type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'water' | null
+type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'stream-d' | 'stream-a' | 'confluence' | 'bridge' | null
 
 interface Cell { item: CellItem | null; ground: GroundFeature }
 
@@ -149,64 +149,6 @@ function buildGarden(
     return cells
   }
 
-  // ── Waterway — procedural streams dividing quadrants ──
-  // Two drunken-walk streams along the diagonals cross at center,
-  // forming an X that separates the four garden zones.
-  // On the rotated grid: main diagonal = vertical on screen,
-  // anti-diagonal = horizontal on screen → forms a + cross.
-  const waterSet = new Set<string>()
-
-  // Stream 1: anti-diagonal LEFT(last,0) → RIGHT(0,last)
-  for (let t = 1; t < last; t++) {
-    const baseR = last - t
-    const baseC = t
-    const h = cellHash(baseR, baseC + 200)
-    const wobble = (h % 3) - 1
-    const r = Math.max(1, Math.min(last - 1, baseR + wobble))
-    const c = Math.max(1, Math.min(last - 1, baseC))
-    waterSet.add(`${r},${c}`)
-    if (h % 4 === 0) {
-      const wr = Math.max(1, Math.min(last - 1, r + (h % 2 === 0 ? 1 : -1)))
-      waterSet.add(`${wr},${c}`)
-    }
-  }
-
-  // Stream 2: main diagonal BACK(0,0) → FRONT(last,last)
-  for (let t = 1; t < last; t++) {
-    const baseR = t
-    const baseC = t
-    const h = cellHash(baseR + 300, baseC)
-    const wobble = (h % 3) - 1
-    const r = Math.max(1, Math.min(last - 1, baseR))
-    const c = Math.max(1, Math.min(last - 1, baseC + wobble))
-    waterSet.add(`${r},${c}`)
-    if (h % 4 === 0) {
-      const wc = Math.max(1, Math.min(last - 1, c + (h % 2 === 0 ? 1 : -1)))
-      waterSet.add(`${r},${wc}`)
-    }
-  }
-
-  // Widen at center intersection → small pond
-  const mid = (side - 1) / 2
-  for (const wKey of [...waterSet]) {
-    const [wr, wc] = wKey.split(',').map(Number)
-    if (Math.abs(wr - mid) + Math.abs(wc - mid) < 2) {
-      for (const [dr, dc] of [[0, 1], [1, 0], [0, -1], [-1, 0]] as const) {
-        const nr = wr + dr, nc = wc + dc
-        if (nr >= 1 && nr < last && nc >= 1 && nc < last) {
-          waterSet.add(`${nr},${nc}`)
-        }
-      }
-    }
-  }
-
-  // Apply water — prevents items from being placed on water
-  for (const wKey of waterSet) {
-    const [wr, wc] = wKey.split(',').map(Number)
-    grid[wr][wc].ground = 'water'
-    occupied.add(wKey)
-  }
-
   // ── Habits → BACK corner (0,0) ──
   const activeHabits = allHabits.filter(g => !g.retired)
   const retiredHabits = allHabits.filter(g => g.retired)
@@ -261,35 +203,63 @@ function buildGarden(
     }
   }
 
+  // ── Waterway paths (decorative only — items always have priority) ──
+  // Two streams follow the grid diagonals, forming a + cross on screen.
+  // Computed AFTER items so water flows around placed items.
+  const diagMain = new Set<string>() // BACK→FRONT diagonal (vertical on screen)
+  const diagAnti = new Set<string>() // LEFT→RIGHT anti-diagonal (horizontal on screen)
+
+  for (let t = 1; t < last; t++) {
+    // Anti-diagonal: LEFT(last,0) → RIGHT(0,last)
+    const ah = cellHash(last - t, t + 200)
+    const aWob = ah % 5 === 0 ? ((ah >> 3) % 2 === 0 ? 1 : -1) : 0
+    const ar = Math.max(1, Math.min(last - 1, last - t + aWob))
+    diagAnti.add(`${ar},${Math.max(1, Math.min(last - 1, t))}`)
+
+    // Main diagonal: BACK(0,0) → FRONT(last,last)
+    const mh = cellHash(t + 300, t)
+    const mWob = mh % 5 === 0 ? ((mh >> 3) % 2 === 0 ? 1 : -1) : 0
+    const mc = Math.max(1, Math.min(last - 1, t + mWob))
+    diagMain.add(`${Math.max(1, Math.min(last - 1, t))},${mc}`)
+  }
+
   // ── Ground features ──
-  // Zone-specific ground cover (water already placed by waterway generator)
   for (let r = 0; r < side; r++) {
     for (let c = 0; c < side; c++) {
-      if (grid[r][c].item || grid[r][c].ground) continue // skip items and water
-      const h = cellHash(r, c)
+      if (grid[r][c].item) continue
+      const key = `${r},${c}`
+      const onMain = diagMain.has(key)
+      const onAnti = diagAnti.has(key)
 
-      const dBack = distFromCorner(r, c, BACK.r, BACK.c)
-      const dFront = distFromCorner(r, c, FRONT.r, FRONT.c)
-      const dLeft = distFromCorner(r, c, LEFT.r, LEFT.c)
-      const dRight = distFromCorner(r, c, RIGHT.r, RIGHT.c)
-      const minDist = Math.min(dBack, dFront, dLeft, dRight)
-
-      if (minDist === dLeft) {
-        // Pomodoro zone: clover and pebbles
-        if (h % 6 === 0) grid[r][c].ground = 'clover'
-        else if (h % 13 === 0) grid[r][c].ground = 'pebble'
-      } else if (minDist === dRight) {
-        // Trophy zone: gravel and stones
-        if (h % 5 === 0) grid[r][c].ground = 'gravel'
-        else if (h % 11 === 0) grid[r][c].ground = 'stone'
-      } else if (minDist === dFront) {
-        // Prayer zone: moss and wildflowers
-        if (h % 5 === 0) grid[r][c].ground = 'moss'
-        else if (h % 9 === 0) grid[r][c].ground = 'wildflower'
+      // Water features (streams flow around items)
+      if (onMain && onAnti) {
+        grid[r][c].ground = 'confluence'
+      } else if (onMain) {
+        grid[r][c].ground = cellHash(r, c) % 5 === 0 ? 'bridge' : 'stream-d'
+      } else if (onAnti) {
+        grid[r][c].ground = cellHash(r, c) % 5 === 0 ? 'bridge' : 'stream-a'
       } else {
-        // Habit zone: moss and mushrooms
-        if (h % 7 === 0) grid[r][c].ground = 'moss'
-        else if (h % 17 === 0) grid[r][c].ground = 'mushroom'
+        // Zone-specific ground cover
+        const h = cellHash(r, c)
+        const dBack = distFromCorner(r, c, BACK.r, BACK.c)
+        const dFront = distFromCorner(r, c, FRONT.r, FRONT.c)
+        const dLeft = distFromCorner(r, c, LEFT.r, LEFT.c)
+        const dRight = distFromCorner(r, c, RIGHT.r, RIGHT.c)
+        const minDist = Math.min(dBack, dFront, dLeft, dRight)
+
+        if (minDist === dLeft) {
+          if (h % 6 === 0) grid[r][c].ground = 'clover'
+          else if (h % 13 === 0) grid[r][c].ground = 'pebble'
+        } else if (minDist === dRight) {
+          if (h % 5 === 0) grid[r][c].ground = 'gravel'
+          else if (h % 11 === 0) grid[r][c].ground = 'stone'
+        } else if (minDist === dFront) {
+          if (h % 5 === 0) grid[r][c].ground = 'moss'
+          else if (h % 9 === 0) grid[r][c].ground = 'wildflower'
+        } else {
+          if (h % 7 === 0) grid[r][c].ground = 'moss'
+          else if (h % 17 === 0) grid[r][c].ground = 'mushroom'
+        }
       }
     }
   }
@@ -301,13 +271,43 @@ function buildGarden(
 function GroundSVG({ feature }: { feature: GroundFeature }) {
   if (!feature) return null
   const s = { position: 'absolute' as const, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
+  const w = { position: 'absolute' as const, left: 0, top: 0 }
 
   switch (feature) {
-    case 'water': return (
-      <svg style={{ position: 'absolute' as const, left: 0, top: 0, width: '100%', height: '100%' }} viewBox="0 0 44 44" fill="none">
-        <rect width="44" height="44" fill="rgba(55,120,170,0.18)" />
-        <ellipse cx="26" cy="18" rx="14" ry="9" fill="rgba(85,155,200,0.06)" />
-        <ellipse cx="14" cy="30" rx="10" ry="6" fill="rgba(100,170,215,0.04)" />
+    // Stream along main diagonal (NW→SE in grid, appears vertical on screen)
+    // Elongated ellipses rotated 45° so adjacent cells' streams connect
+    case 'stream-d': return (
+      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
+        <ellipse cx="22" cy="22" rx="30" ry="6" fill="rgba(65,130,175,0.14)" transform="rotate(45 22 22)" />
+        <ellipse cx="22" cy="22" rx="24" ry="3.5" fill="rgba(85,155,195,0.09)" transform="rotate(45 22 22)" />
+        <ellipse cx="20" cy="20" rx="12" ry="1.5" fill="rgba(130,190,225,0.06)" transform="rotate(45 22 22)" />
+      </svg>
+    )
+    // Stream along anti-diagonal (SW→NE in grid, appears horizontal on screen)
+    case 'stream-a': return (
+      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
+        <ellipse cx="22" cy="22" rx="30" ry="6" fill="rgba(65,130,175,0.14)" transform="rotate(-45 22 22)" />
+        <ellipse cx="22" cy="22" rx="24" ry="3.5" fill="rgba(85,155,195,0.09)" transform="rotate(-45 22 22)" />
+        <ellipse cx="24" cy="20" rx="12" ry="1.5" fill="rgba(130,190,225,0.06)" transform="rotate(-45 22 22)" />
+      </svg>
+    )
+    // Where both streams cross — small pool with both flow directions
+    case 'confluence': return (
+      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
+        <ellipse cx="22" cy="22" rx="30" ry="5" fill="rgba(65,130,175,0.10)" transform="rotate(45 22 22)" />
+        <ellipse cx="22" cy="22" rx="30" ry="5" fill="rgba(65,130,175,0.10)" transform="rotate(-45 22 22)" />
+        <ellipse cx="22" cy="22" rx="9" ry="7" fill="rgba(55,120,170,0.12)" />
+        <ellipse cx="20" cy="20" rx="4.5" ry="3" fill="rgba(85,155,195,0.08)" />
+      </svg>
+    )
+    // Stepping stone bridge over water
+    case 'bridge': return (
+      <svg style={w} width="44" height="44" viewBox="0 0 44 44" fill="none">
+        <ellipse cx="22" cy="22" rx="28" ry="3.5" fill="rgba(65,130,175,0.07)" transform="rotate(45 22 22)" />
+        <ellipse cx="22" cy="22" rx="28" ry="3.5" fill="rgba(65,130,175,0.07)" transform="rotate(-45 22 22)" />
+        <ellipse cx="22" cy="22" rx="13" ry="9" fill="rgba(155,148,135,0.2)" />
+        <ellipse cx="21" cy="21" rx="9.5" ry="6.5" fill="rgba(170,163,150,0.14)" />
+        <ellipse cx="19" cy="19" rx="4" ry="2.5" fill="rgba(185,178,165,0.08)" />
       </svg>
     )
     case 'stone': return (
