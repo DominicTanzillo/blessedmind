@@ -16,7 +16,7 @@ export default defineConfig({
         description: 'Mindful focus and task management',
         theme_color: '#788764',
         background_color: '#1a1a1a',
-        display: 'standalone',
+        display: 'fullscreen',
         scope: '/blessedmind/',
         start_url: '/blessedmind/',
         icons: [

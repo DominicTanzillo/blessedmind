@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "blessedmind": {
+      "command": "node",
+      "args": ["C:/Users/virtu/Documents/AllostaticReducer/mcp-server/index.js"]
+    }
+  }
+}

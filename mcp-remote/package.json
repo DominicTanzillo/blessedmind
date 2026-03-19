@@ -1,0 +1,13 @@
+{
+  "name": "blessedmind-mcp-remote",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@supabase/supabase-js": "^2.49.4",
+    "express": "^5.1.0"
+  }
+}

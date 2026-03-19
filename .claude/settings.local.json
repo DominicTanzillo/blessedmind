@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /c/Users/virtu/Documents/AllostaticReducer log --oneline -10)",
+      "Bash(git -C /c/Users/virtu/Documents/AllostaticReducer remote -v)",
+      "Bash(git -C /c/Users/virtu/Documents/AllostaticReducer status)",
+      "Bash(git -C /c/Users/virtu/Documents/AllostaticReducer branch -a)",
+      "Bash(git -C \"C:/Users/virtu/Documents/AllostaticReducer\" log --oneline -10)",
+      "WebSearch",
+      "Bash(npm create:*)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(VITE_SUPABASE_URL=https://example.supabase.co VITE_SUPABASE_ANON_KEY=test VITE_APP_PASSWORD_HASH=test npx vite:*)",
+      "Bash(npx vite build)",
+      "Bash(npx vite:*)",
+      "Bash(lsof:*)",
+      "Bash(netstat:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run watch:*)",
+      "Bash(node -e \"\nconst { execSync } = require\\(''child_process''\\);\n// Check if sharp is available\ntry { require\\(''sharp''\\); console.log\\(''sharp available''\\); } catch\\(e\\) { console.log\\(''sharp not available''\\); }\n\")",
+      "Bash(npm uninstall:*)",
+      "Bash(npm run build:*)",
+      "Bash(file:*)",
+      "Bash(npm run dev:*)",
+      "Bash(start \"\" \"C:\\\\Users\\\\virtu\\\\Documents\\\\AllostaticReducer\\\\plant-preview.html\")"
+    ]
+  }
+}
