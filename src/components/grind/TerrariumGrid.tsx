@@ -349,16 +349,41 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
     }
     const pathD = smoothPath(pPts)
 
-    // Branch trails: gentle curves from center into each quadrant
-    const tLen = Math.min(CELL * 2.5, gPx * 0.22)
+    // Find actual intersection of river and path for bridge placement
+    // (river meanders, so center != intersection)
+    const lerp = (pts: [number, number][], val: number, axis: 0 | 1): number => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        if (val >= pts[i][axis] && val <= pts[i + 1][axis]) {
+          const t = (val - pts[i][axis]) / (pts[i + 1][axis] - pts[i][axis])
+          return pts[i][1 - axis] + t * (pts[i + 1][1 - axis] - pts[i][1 - axis])
+        }
+      }
+      return axis === 1 ? pts[0][0] : pts[0][1]
+    }
+    const bx = lerp(rPts, hR, 1)  // river's x where y = hR
+    const by = lerp(pPts, bx, 0)  // path's y where x = bx
+
+    // Branch trails: perpendicular to main path at quarter-points
+    // Each trail starts ON the path and goes straight up or down into a quadrant
+    const qCol = Math.max(1, Math.floor(side / 4))
+    const tqCol = Math.min(side - 1, side - 1 - qCol)
+    const qX = qCol * CELL + CELL / 2
+    const tqX = tqCol * CELL + CELL / 2
+    const pathYQ = lerp(pPts, qX, 0)   // path's y at quarter column
+    const pathYTQ = lerp(pPts, tqX, 0) // path's y at 3/4 column
+    const tLen = Math.min(CELL * 2.5, gPx * 0.2)
     const trails = [
-      `M${hC - CELL * 0.3},${hR} Q${hC - tLen * 0.5},${hR - tLen * 0.4} ${hC - tLen * 0.7},${hR - tLen * 0.7}`,
-      `M${hC + CELL * 0.3},${hR} Q${hC + tLen * 0.5},${hR - tLen * 0.4} ${hC + tLen * 0.7},${hR - tLen * 0.7}`,
-      `M${hC - CELL * 0.3},${hR} Q${hC - tLen * 0.5},${hR + tLen * 0.4} ${hC - tLen * 0.7},${hR + tLen * 0.7}`,
-      `M${hC + CELL * 0.3},${hR} Q${hC + tLen * 0.5},${hR + tLen * 0.4} ${hC + tLen * 0.7},${hR + tLen * 0.7}`,
+      // BACK quadrant: from path at quarter, going UP
+      `M${qX},${pathYQ} Q${qX - CELL * 0.2},${pathYQ - tLen * 0.5} ${qX},${pathYQ - tLen}`,
+      // RIGHT quadrant: from path at 3/4, going UP
+      `M${tqX},${pathYTQ} Q${tqX + CELL * 0.2},${pathYTQ - tLen * 0.5} ${tqX},${pathYTQ - tLen}`,
+      // LEFT quadrant: from path at quarter, going DOWN
+      `M${qX},${pathYQ} Q${qX + CELL * 0.2},${pathYQ + tLen * 0.5} ${qX},${pathYQ + tLen}`,
+      // FRONT quadrant: from path at 3/4, going DOWN
+      `M${tqX},${pathYTQ} Q${tqX - CELL * 0.2},${pathYTQ + tLen * 0.5} ${tqX},${pathYTQ + tLen}`,
     ]
 
-    return { gPx, riverD, pathD, trails, bx: hC, by: hR }
+    return { gPx, riverD, pathD, trails, bx, by }
   }, [side])
 
   // ── Drag (desktop only) ──────────────────────────────────
