@@ -48,7 +48,7 @@ type CellItem =
   | { kind: 'audit'; audit: TimeAudit; key: string }
   | { kind: 'prayer'; index: number; key: string }
 
-type GroundFeature = 'moss' | 'clover' | 'pebble' | 'pond' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'stream' | null
+type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'water' | null
 
 interface Cell { item: CellItem | null; ground: GroundFeature }
 
@@ -149,6 +149,64 @@ function buildGarden(
     return cells
   }
 
+  // ── Waterway — procedural streams dividing quadrants ──
+  // Two drunken-walk streams along the diagonals cross at center,
+  // forming an X that separates the four garden zones.
+  // On the rotated grid: main diagonal = vertical on screen,
+  // anti-diagonal = horizontal on screen → forms a + cross.
+  const waterSet = new Set<string>()
+
+  // Stream 1: anti-diagonal LEFT(last,0) → RIGHT(0,last)
+  for (let t = 1; t < last; t++) {
+    const baseR = last - t
+    const baseC = t
+    const h = cellHash(baseR, baseC + 200)
+    const wobble = (h % 3) - 1
+    const r = Math.max(1, Math.min(last - 1, baseR + wobble))
+    const c = Math.max(1, Math.min(last - 1, baseC))
+    waterSet.add(`${r},${c}`)
+    if (h % 4 === 0) {
+      const wr = Math.max(1, Math.min(last - 1, r + (h % 2 === 0 ? 1 : -1)))
+      waterSet.add(`${wr},${c}`)
+    }
+  }
+
+  // Stream 2: main diagonal BACK(0,0) → FRONT(last,last)
+  for (let t = 1; t < last; t++) {
+    const baseR = t
+    const baseC = t
+    const h = cellHash(baseR + 300, baseC)
+    const wobble = (h % 3) - 1
+    const r = Math.max(1, Math.min(last - 1, baseR))
+    const c = Math.max(1, Math.min(last - 1, baseC + wobble))
+    waterSet.add(`${r},${c}`)
+    if (h % 4 === 0) {
+      const wc = Math.max(1, Math.min(last - 1, c + (h % 2 === 0 ? 1 : -1)))
+      waterSet.add(`${r},${wc}`)
+    }
+  }
+
+  // Widen at center intersection → small pond
+  const mid = (side - 1) / 2
+  for (const wKey of [...waterSet]) {
+    const [wr, wc] = wKey.split(',').map(Number)
+    if (Math.abs(wr - mid) + Math.abs(wc - mid) < 2) {
+      for (const [dr, dc] of [[0, 1], [1, 0], [0, -1], [-1, 0]] as const) {
+        const nr = wr + dr, nc = wc + dc
+        if (nr >= 1 && nr < last && nc >= 1 && nc < last) {
+          waterSet.add(`${nr},${nc}`)
+        }
+      }
+    }
+  }
+
+  // Apply water — prevents items from being placed on water
+  for (const wKey of waterSet) {
+    const [wr, wc] = wKey.split(',').map(Number)
+    grid[wr][wc].ground = 'water'
+    occupied.add(wKey)
+  }
+
   // ── Habits → BACK corner (0,0) ──
   const activeHabits = allHabits.filter(g => !g.retired)
   const retiredHabits = allHabits.filter(g => g.retired)
@@ -164,8 +222,8 @@ function buildGarden(
     }
   }
 
-  // ── Prayers → LEFT corner (N,0) ──
-  const prayerCells = cellsByCorner(LEFT, side)
+  // ── Prayers → FRONT corner (N,N) ──
+  const prayerCells = cellsByCorner(FRONT, side)
   for (let i = 0; i < prayerCount; i++) {
     const key = `prayer:${i}`
     const sv = saved[key]
@@ -191,36 +249,25 @@ function buildGarden(
     }
   }
 
-  // ── Pomodoros → FRONT corner (N,N) ──
+  // ── Pomodoros → LEFT corner (N,0) ──
   const sortedPomos = [...pomodoros].sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime())
-  const frontCells = cellsByCorner(FRONT, side)
+  const pomoCells = cellsByCorner(LEFT, side)
   for (const p of sortedPomos) {
     const key = `pomodoro:${p.id}`
     const sv = saved[key]
     if (sv && place(sv.r, sv.c, { kind: 'pomodoro', pomodoro: p, colorIndex: hashId(p.id) % 10, key })) continue
-    for (const [r, c] of frontCells) {
+    for (const [r, c] of pomoCells) {
       if (place(r, c, { kind: 'pomodoro', pomodoro: p, colorIndex: hashId(p.id) % 10, key })) break
     }
   }
 
   // ── Ground features ──
-  // Water/stream flows through the center diagonal (where zones meet)
-  const center = side / 2
+  // Zone-specific ground cover (water already placed by waterway generator)
   for (let r = 0; r < side; r++) {
     for (let c = 0; c < side; c++) {
-      if (grid[r][c].item) continue
+      if (grid[r][c].item || grid[r][c].ground) continue // skip items and water
       const h = cellHash(r, c)
 
-      // Center diagonal band: flowing water between zones
-      const distToCenter = Math.abs(r - center) + Math.abs(c - center)
-      const onCenterBand = distToCenter < side * 0.3
-
-      if (onCenterBand && h % 3 < 2) {
-        grid[r][c].ground = h % 4 === 0 ? 'stone' : 'stream'
-        continue
-      }
-
-      // Zone-specific ground cover based on nearest corner
       const dBack = distFromCorner(r, c, BACK.r, BACK.c)
       const dFront = distFromCorner(r, c, FRONT.r, FRONT.c)
       const dLeft = distFromCorner(r, c, LEFT.r, LEFT.c)
@@ -228,17 +275,17 @@ function buildGarden(
       const minDist = Math.min(dBack, dFront, dLeft, dRight)
 
       if (minDist === dLeft) {
-        // Prayer zone: moss and wildflowers
-        if (h % 5 === 0) grid[r][c].ground = 'moss'
-        else if (h % 9 === 0) grid[r][c].ground = 'wildflower'
+        // Pomodoro zone: clover and pebbles
+        if (h % 6 === 0) grid[r][c].ground = 'clover'
+        else if (h % 13 === 0) grid[r][c].ground = 'pebble'
       } else if (minDist === dRight) {
         // Trophy zone: gravel and stones
         if (h % 5 === 0) grid[r][c].ground = 'gravel'
         else if (h % 11 === 0) grid[r][c].ground = 'stone'
       } else if (minDist === dFront) {
-        // Pomodoro zone: clover and pebbles
-        if (h % 6 === 0) grid[r][c].ground = 'clover'
-        else if (h % 13 === 0) grid[r][c].ground = 'pebble'
+        // Prayer zone: moss and wildflowers
+        if (h % 5 === 0) grid[r][c].ground = 'moss'
+        else if (h % 9 === 0) grid[r][c].ground = 'wildflower'
       } else {
         // Habit zone: moss and mushrooms
         if (h % 7 === 0) grid[r][c].ground = 'moss'
@@ -256,19 +303,11 @@ function GroundSVG({ feature }: { feature: GroundFeature }) {
   const s = { position: 'absolute' as const, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
 
   switch (feature) {
-    case 'stream': return (
-      <svg style={s} width="38" height="32" viewBox="0 0 38 32" fill="none">
-        <ellipse cx="19" cy="16" rx="16" ry="12" fill="rgba(65,130,175,0.22)" />
-        <ellipse cx="17" cy="14" rx="10" ry="7" fill="rgba(85,155,195,0.18)" />
-        <ellipse cx="15" cy="12" rx="5" ry="3" fill="rgba(130,190,225,0.14)" />
-        <ellipse cx="22" cy="18" rx="4" ry="1.5" fill="rgba(170,215,240,0.12)" />
-      </svg>
-    )
-    case 'pond': return (
-      <svg style={s} width="28" height="22" viewBox="0 0 28 22" fill="none">
-        <ellipse cx="14" cy="12" rx="12" ry="8" fill="rgba(55,120,165,0.22)" />
-        <ellipse cx="13" cy="11" rx="8" ry="5" fill="rgba(80,150,190,0.17)" />
-        <ellipse cx="11" cy="10" rx="4" ry="2" fill="rgba(130,190,225,0.13)" />
+    case 'water': return (
+      <svg style={{ position: 'absolute' as const, left: 0, top: 0, width: '100%', height: '100%' }} viewBox="0 0 44 44" fill="none">
+        <rect width="44" height="44" fill="rgba(55,120,170,0.18)" />
+        <ellipse cx="26" cy="18" rx="14" ry="9" fill="rgba(85,155,200,0.06)" />
+        <ellipse cx="14" cy="30" rx="10" ry="6" fill="rgba(100,170,215,0.04)" />
       </svg>
     )
     case 'stone': return (
@@ -408,7 +447,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
         <div className="h-px flex-1 bg-stone-200" />
       </div>
 
-      <div className="flex justify-center" style={{ perspective: '900px', perspectiveOrigin: '50% 40%' }}>
+      <div className="flex justify-center pb-6" style={{ perspective: '900px', perspectiveOrigin: '50% 40%' }}>
         <div
           className="terrarium-container"
           style={{ width: gridPx, height: gridPx, transform: 'rotateX(55deg) rotateZ(45deg)', transformStyle: 'preserve-3d', position: 'relative' }}
