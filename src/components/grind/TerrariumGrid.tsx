@@ -9,9 +9,9 @@ import type { Grind, Pomodoro, PlantHealth, Task, TimeAudit } from '../../types'
 
 // ── Constants ────────────────────────────────────────────────
 const CELL = 44
-const MIN_SIDE = 6
+const MIN_SIDE = 7
 const MAX_SIDE = 14
-const ZEN_FILL = 0.40 // 40% filled, 60% breathing room
+const ZEN_FILL = 0.35
 const LS_KEY = 'terrarium-grid-positions'
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -24,8 +24,6 @@ function cellHash(r: number, c: number): number {
 function pomodoroStage(d: number): 0 | 1 | 2 | 3 | 4 {
   if (d >= 60) return 4; if (d >= 30) return 3; if (d >= 15) return 2; return 1
 }
-
-// Organic offset from cell center — wabi-sabi imperfection
 function organicOffset(id: string): { dx: number; dy: number } {
   const h = hashId(id)
   return { dx: ((h % 7) - 3) * 1.5, dy: (((h >> 3) % 7) - 3) * 1.5 }
@@ -46,12 +44,12 @@ type CellItem =
   | { kind: 'audit'; audit: TimeAudit; key: string }
   | { kind: 'prayer'; index: number; key: string }
 
-type GroundFeature = 'moss' | 'clover' | 'pebble' | 'pond' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'path' | null
+type GroundFeature = 'moss' | 'clover' | 'pebble' | 'pond' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | 'stream' | null
 
 interface Cell {
   item: CellItem | null
   ground: GroundFeature
-  zone: 'habit' | 'prayer' | 'trophy' | 'pomodoro' | 'path' | 'open'
+  zone: 'habit' | 'prayer' | 'trophy' | 'pomodoro' | 'open'
 }
 
 interface Props {
@@ -73,6 +71,13 @@ function savePositions(pos: Record<string, { r: number; c: number }>) {
 }
 
 // ── Garden Builder ───────────────────────────────────────────
+// Zones (in isometric view):
+//   BACK (top rows, far from viewer)  → Habit plants (2×2)
+//   LEFT columns                      → Prayer roses
+//   RIGHT columns                     → Trophies + audits
+//   FRONT (bottom rows, close)        → Pomodoro bushes
+//   Between zones: flowing water stream + stepping stones
+
 function buildGarden(
   allHabits: Grind[],
   pomodoros: Pomodoro[],
@@ -81,50 +86,42 @@ function buildGarden(
   prayerCount: number,
   healthMap: Map<string, PlantHealth>,
 ) {
-  // Grid sizing — zen ratio
   const totalUnits = allHabits.length * 4 + prayerCount + trophies.length + audits.length + pomodoros.length
   const desiredCells = Math.max(MIN_SIDE * MIN_SIDE, Math.ceil(totalUnits / ZEN_FILL))
   const side = Math.min(MAX_SIDE, Math.max(MIN_SIDE, Math.ceil(Math.sqrt(desiredCells))))
 
-  // Zone boundaries (in grid coords)
-  // Front (bottom 3 rows): active habits
-  // Left columns: prayers
-  // Right columns: trophies + audits
-  // Remaining: pomodoros scattered
-  const pathCol = Math.floor(side / 2)
-  const frontStart = side - 3
+  // Zone boundaries
+  const habitZoneEnd = 2        // rows 0-2 for habits (back/top)
+  const pomoZoneStart = side - 2 // bottom 2 rows for pomodoros (front)
+  const leftZoneEnd = Math.floor(side * 0.4)  // left ~40% for prayers
+  const rightZoneStart = Math.ceil(side * 0.6) // right ~40% for trophies
 
-  // Build empty grid
   const grid: Cell[][] = Array.from({ length: side }, (_, r) =>
     Array.from({ length: side }, (_, c) => {
       let zone: Cell['zone'] = 'open'
-      if (c === pathCol) zone = 'path'
-      else if (r >= frontStart) zone = 'habit'
-      else if (c < pathCol) zone = 'prayer'
-      else zone = 'trophy'
+      if (r <= habitZoneEnd && c < side) zone = 'habit'
+      else if (r >= pomoZoneStart) zone = 'pomodoro'
+      else if (c < leftZoneEnd) zone = 'prayer'
+      else if (c >= rightZoneStart) zone = 'trophy'
       return { item: null, ground: null, zone }
     })
   )
 
-  // Load saved positions
   const saved = loadPositions()
   const occupied = new Set<string>()
 
-  // Helper: try placing at (r,c)
   function place(r: number, c: number, item: CellItem): boolean {
     if (r < 0 || r >= side || c < 0 || c >= side) return false
     if (occupied.has(`${r},${c}`)) return false
-    if (grid[r][c].zone === 'path') return false
     grid[r][c].item = item
     occupied.add(`${r},${c}`)
     return true
   }
 
-  // Helper: place 2x2 habit
   function placeHabit(r: number, c: number, grind: Grind, health: PlantHealth): boolean {
     if (r + 1 >= side || c + 1 >= side) return false
     const cells = [[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]]
-    if (cells.some(([cr, cc]) => occupied.has(`${cr},${cc}`) || grid[cr][cc].zone === 'path')) return false
+    if (cells.some(([cr, cc]) => occupied.has(`${cr},${cc}`))) return false
     const corners: Array<'tl' | 'tr' | 'bl' | 'br'> = ['tl', 'tr', 'bl', 'br']
     const key = `habit:${grind.id}`
     cells.forEach(([cr, cc], i) => {
@@ -134,140 +131,134 @@ function buildGarden(
     return true
   }
 
-  // ── Place items with saved positions first ──
-  // Active habits (front zone)
+  // ── Place habits (BACK / top rows, starting from row 0) ──
   const activeHabits = allHabits.filter(g => !g.retired)
   const retiredHabits = allHabits.filter(g => g.retired)
 
-  // Place active habits at front
-  let habitCol = 0
   for (const g of activeHabits) {
     const key = `habit:${g.id}`
     const health = healthMap.get(g.id) ?? 'healthy'
     const sv = saved[key]
     if (sv && placeHabit(sv.r, sv.c, g, health)) continue
-    // Auto-place in front zone
     let placed = false
-    for (let c = habitCol; c < side - 1 && !placed; c++) {
-      if (c === pathCol || c + 1 === pathCol) continue
-      if (placeHabit(frontStart, c, g, health)) { habitCol = c + 2; placed = true }
+    for (let r = 0; r <= habitZoneEnd && !placed; r++) {
+      for (let c = 0; c < side - 1 && !placed; c++) {
+        placed = placeHabit(r, c, g, health)
+      }
     }
+    // Overflow
     if (!placed) {
-      for (let r = frontStart; r >= 0 && !placed; r--) {
-        for (let c = 0; c < side - 1 && !placed; c++) {
-          if (c === pathCol || c + 1 === pathCol) continue
-          placed = placeHabit(r, c, g, health)
-        }
+      for (let r = habitZoneEnd + 1; r < side - 1 && !placed; r++) {
+        for (let c = 0; c < side - 1 && !placed; c++) placed = placeHabit(r, c, g, health)
       }
     }
   }
-
-  // Place retired habits (back/top area)
   for (const g of retiredHabits) {
     const key = `habit:${g.id}`
     const health = healthMap.get(g.id) ?? 'healthy'
     const sv = saved[key]
     if (sv && placeHabit(sv.r, sv.c, g, health)) continue
     let placed = false
-    for (let r = 0; r < frontStart && !placed; r++) {
-      for (let c = 0; c < side - 1 && !placed; c++) {
-        if (c === pathCol || c + 1 === pathCol) continue
-        placed = placeHabit(r, c, g, health)
-      }
+    for (let r = 0; r <= habitZoneEnd && !placed; r++) {
+      for (let c = 0; c < side - 1 && !placed; c++) placed = placeHabit(r, c, g, health)
     }
   }
 
-  // Place prayers (left zone, spiral from center)
-  const prayerCenterR = Math.floor((frontStart) / 2)
-  const prayerCenterC = Math.floor(pathCol / 2)
-  const prayerCells = spiralFrom(prayerCenterR, prayerCenterC, side)
-    .filter(([r, c]) => c < pathCol && r < frontStart)
-
+  // ── Place prayers (LEFT, starting from far-left column) ──
   for (let i = 0; i < prayerCount; i++) {
     const key = `prayer:${i}`
     const sv = saved[key]
     if (sv && place(sv.r, sv.c, { kind: 'prayer', index: i, key })) continue
-    for (const [r, c] of prayerCells) {
-      if (place(r, c, { kind: 'prayer', index: i, key })) break
+    let placed = false
+    // Fill from left edge, top to bottom within prayer zone
+    for (let c = 0; c < leftZoneEnd && !placed; c++) {
+      for (let r = habitZoneEnd + 1; r < pomoZoneStart && !placed; r++) {
+        placed = place(r, c, { kind: 'prayer', index: i, key })
+      }
     }
   }
 
-  // Place trophies + audits (right zone)
+  // ── Place trophies + audits (RIGHT, starting from far-right column) ──
   const sortedTrophies = [...trophies].sort((a, b) => new Date(a.completed_at!).getTime() - new Date(b.completed_at!).getTime())
   const sortedAudits = [...audits].sort((a, b) => new Date(a.completed_at!).getTime() - new Date(b.completed_at!).getTime())
-  const trophyCenterR = Math.floor((frontStart) / 2)
-  const trophyCenterC = Math.floor((pathCol + 1 + side) / 2)
-  const trophyCells = spiralFrom(trophyCenterR, trophyCenterC, side)
-    .filter(([r, c]) => c > pathCol && r < frontStart)
 
-  for (const t of sortedTrophies) {
-    const key = `trophy:${t.id}`
-    const sv = saved[key]
-    if (sv && place(sv.r, sv.c, { kind: 'trophy', task: t, key })) continue
-    for (const [r, c] of trophyCells) {
-      if (place(r, c, { kind: 'trophy', task: t, key })) break
-    }
-  }
-  for (const a of sortedAudits) {
-    const key = `audit:${a.id}`
-    const sv = saved[key]
-    if (sv && place(sv.r, sv.c, { kind: 'audit', audit: a, key })) continue
-    for (const [r, c] of trophyCells) {
-      if (place(r, c, { kind: 'audit', audit: a, key })) break
+  const rightItems: CellItem[] = [
+    ...sortedTrophies.map(t => ({ kind: 'trophy' as const, task: t, key: `trophy:${t.id}` })),
+    ...sortedAudits.map(a => ({ kind: 'audit' as const, audit: a, key: `audit:${a.id}` })),
+  ]
+  for (const item of rightItems) {
+    const sv = saved[item.key]
+    if (sv && place(sv.r, sv.c, item)) continue
+    let placed = false
+    // Fill from right edge, top to bottom
+    for (let c = side - 1; c >= rightZoneStart && !placed; c--) {
+      for (let r = habitZoneEnd + 1; r < pomoZoneStart && !placed; r++) {
+        placed = place(r, c, item)
+      }
     }
   }
 
-  // Place pomodoros (fill remaining open cells, spiral from back)
+  // ── Place pomodoros (FRONT / bottom rows, starting from bottom) ──
   const sortedPomos = [...pomodoros].sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime())
-  const pomoCells = spiralFrom(Math.floor(side / 4), Math.floor(side / 2), side)
-    .filter(([r, c]) => grid[r]?.[c]?.zone !== 'path')
-
   for (const p of sortedPomos) {
     const key = `pomodoro:${p.id}`
     const sv = saved[key]
     if (sv && place(sv.r, sv.c, { kind: 'pomodoro', pomodoro: p, colorIndex: hashId(p.id) % 10, key })) continue
-    for (const [r, c] of pomoCells) {
-      if (place(r, c, { kind: 'pomodoro', pomodoro: p, colorIndex: hashId(p.id) % 10, key })) break
+    let placed = false
+    // Fill from bottom row upward
+    for (let r = side - 1; r >= pomoZoneStart && !placed; r--) {
+      for (let c = 0; c < side && !placed; c++) {
+        placed = place(r, c, { kind: 'pomodoro', pomodoro: p, colorIndex: hashId(p.id) % 10, key })
+      }
+    }
+    // Overflow into open zone
+    if (!placed) {
+      for (let r = pomoZoneStart - 1; r > habitZoneEnd && !placed; r--) {
+        for (let c = leftZoneEnd; c < rightZoneStart && !placed; c++) {
+          placed = place(r, c, { kind: 'pomodoro', pomodoro: p, colorIndex: hashId(p.id) % 10, key })
+        }
+      }
     }
   }
 
-  // ── Ground features — zone-appropriate ──
+  // ── Ground features + flowing water between zones ──
   for (let r = 0; r < side; r++) {
     for (let c = 0; c < side; c++) {
       if (grid[r][c].item) continue
       const h = cellHash(r, c)
       const zone = grid[r][c].zone
 
-      if (zone === 'path') {
-        grid[r][c].ground = h % 3 === 0 ? 'path' : null
-      } else if (zone === 'prayer') {
-        if (h % 6 === 0) grid[r][c].ground = 'moss'
-        else if (h % 11 === 0) grid[r][c].ground = 'wildflower'
+      // Stream flows through the gap between zones (open area in middle)
+      const inMiddle = c >= leftZoneEnd && c < rightZoneStart && r > habitZoneEnd && r < pomoZoneStart
+      if (inMiddle) {
+        // Flowing stream through center gap
+        if (h % 3 === 0) { grid[r][c].ground = 'stream'; continue }
+        if (h % 5 === 0) { grid[r][c].ground = 'stone'; continue }
+        if (h % 11 === 0) { grid[r][c].ground = 'moss'; continue }
+        continue
+      }
+
+      // Zone-appropriate ground cover
+      if (zone === 'prayer') {
+        if (h % 5 === 0) grid[r][c].ground = 'moss'
+        else if (h % 9 === 0) grid[r][c].ground = 'wildflower'
       } else if (zone === 'trophy') {
-        if (h % 7 === 0) grid[r][c].ground = 'gravel'
-        else if (h % 13 === 0) grid[r][c].ground = 'stone'
+        if (h % 5 === 0) grid[r][c].ground = 'gravel'
+        else if (h % 11 === 0) grid[r][c].ground = 'stone'
+      } else if (zone === 'pomodoro') {
+        if (h % 6 === 0) grid[r][c].ground = 'clover'
+        else if (h % 13 === 0) grid[r][c].ground = 'pebble'
+      } else if (zone === 'habit') {
+        if (h % 7 === 0) grid[r][c].ground = 'moss'
+        else if (h % 15 === 0) grid[r][c].ground = 'mushroom'
       } else {
-        if (h % 9 === 0) grid[r][c].ground = 'clover'
-        else if (h % 15 === 0) grid[r][c].ground = 'pebble'
-        else if (h % 31 === 0) grid[r][c].ground = 'pond'
-        else if (h % 23 === 0) grid[r][c].ground = 'mushroom'
+        if (h % 8 === 0) grid[r][c].ground = 'clover'
+        else if (h % 19 === 0) grid[r][c].ground = 'pond'
       }
     }
   }
 
   return { grid, side }
-}
-
-// Spiral outward from center point
-function spiralFrom(cr: number, cc: number, size: number): [number, number][] {
-  const cells: [number, number][] = []
-  for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) cells.push([r, c])
-  cells.sort((a, b) => {
-    const dA = Math.abs(a[0] - cr) + Math.abs(a[1] - cc)
-    const dB = Math.abs(b[0] - cr) + Math.abs(b[1] - cc)
-    return dA - dB
-  })
-  return cells
 }
 
 // ── Ground Feature SVGs ─────────────────────────────────────
@@ -276,65 +267,69 @@ function GroundSVG({ feature }: { feature: GroundFeature }) {
   const s = { position: 'absolute' as const, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
 
   switch (feature) {
-    case 'path': return (
-      <svg style={s} width="32" height="28" viewBox="0 0 32 28" fill="none">
-        <ellipse cx="16" cy="14" rx="12" ry="9" fill="rgba(160,150,130,0.25)" />
-        <ellipse cx="14" cy="12" rx="7" ry="5" fill="rgba(175,165,145,0.18)" />
+    case 'stream': return (
+      <svg style={s} width="38" height="32" viewBox="0 0 38 32" fill="none">
+        <ellipse cx="19" cy="16" rx="16" ry="12" fill="rgba(80,140,180,0.22)" />
+        <ellipse cx="17" cy="14" rx="10" ry="7" fill="rgba(100,160,200,0.18)" />
+        <ellipse cx="15" cy="12" rx="5" ry="3" fill="rgba(150,200,230,0.14)" />
+        {/* Water shimmer */}
+        <ellipse cx="22" cy="18" rx="4" ry="1.5" fill="rgba(180,220,245,0.12)" />
+      </svg>
+    )
+    case 'pond': return (
+      <svg style={s} width="28" height="22" viewBox="0 0 28 22" fill="none">
+        <ellipse cx="14" cy="12" rx="12" ry="8" fill="rgba(70,130,170,0.2)" />
+        <ellipse cx="13" cy="11" rx="8" ry="5" fill="rgba(90,155,195,0.16)" />
+        <ellipse cx="11" cy="10" rx="4" ry="2" fill="rgba(140,195,225,0.12)" />
+        <ellipse cx="16" cy="13" rx="3" ry="1.2" fill="rgba(160,210,235,0.1)" />
+      </svg>
+    )
+    case 'stone': return (
+      <svg style={s} width="18" height="12" viewBox="0 0 18 12" fill="none">
+        <ellipse cx="9" cy="6" rx="7" ry="4.5" fill="rgba(145,138,125,0.2)" />
+        <ellipse cx="8" cy="5" rx="4.5" ry="3" fill="rgba(160,153,140,0.14)" />
       </svg>
     )
     case 'moss': return (
       <svg style={s} width="16" height="12" viewBox="0 0 16 12" fill="none">
-        <ellipse cx="5" cy="7" rx="4" ry="3" fill="rgba(100,140,70,0.2)" />
-        <ellipse cx="11" cy="6" rx="3" ry="2.5" fill="rgba(110,150,80,0.15)" />
-        <ellipse cx="8" cy="9" rx="3" ry="2" fill="rgba(90,130,60,0.12)" />
+        <ellipse cx="5" cy="7" rx="4" ry="3" fill="rgba(90,130,65,0.18)" />
+        <ellipse cx="11" cy="6" rx="3.5" ry="2.5" fill="rgba(100,140,72,0.14)" />
+        <ellipse cx="8" cy="9" rx="3" ry="2" fill="rgba(80,120,58,0.1)" />
       </svg>
     )
     case 'clover': return (
       <svg style={s} width="12" height="12" viewBox="0 0 12 12" fill="none">
-        <circle cx="4" cy="4" r="2" fill="rgba(80,140,50,0.2)" />
-        <circle cx="8" cy="4" r="2" fill="rgba(80,140,50,0.18)" />
-        <circle cx="6" cy="7" r="2" fill="rgba(80,140,50,0.22)" />
-        <line x1="6" y1="7" x2="6" y2="11" stroke="rgba(80,140,50,0.15)" strokeWidth="0.5" />
+        <circle cx="4" cy="4" r="2" fill="rgba(75,130,50,0.18)" />
+        <circle cx="8" cy="4" r="2" fill="rgba(75,130,50,0.15)" />
+        <circle cx="6" cy="7" r="2" fill="rgba(75,130,50,0.2)" />
+        <line x1="6" y1="7" x2="6" y2="11" stroke="rgba(75,130,50,0.12)" strokeWidth="0.5" />
       </svg>
     )
     case 'pebble': return (
       <svg style={s} width="14" height="10" viewBox="0 0 14 10" fill="none">
-        <ellipse cx="5" cy="5" rx="3" ry="2" fill="rgba(130,125,110,0.18)" />
-        <ellipse cx="10" cy="6" rx="2.5" ry="1.5" fill="rgba(120,115,100,0.15)" />
-      </svg>
-    )
-    case 'pond': return (
-      <svg style={s} width="24" height="18" viewBox="0 0 24 18" fill="none">
-        <ellipse cx="12" cy="10" rx="10" ry="6" fill="rgba(120,170,190,0.2)" />
-        <ellipse cx="12" cy="9" rx="7" ry="4" fill="rgba(140,190,210,0.15)" />
-        <ellipse cx="10" cy="8" rx="3" ry="1.5" fill="rgba(200,220,240,0.12)" />
+        <ellipse cx="5" cy="5" rx="3" ry="2" fill="rgba(130,125,110,0.16)" />
+        <ellipse cx="10" cy="6" rx="2.5" ry="1.5" fill="rgba(120,115,100,0.13)" />
       </svg>
     )
     case 'mushroom': return (
       <svg style={s} width="10" height="12" viewBox="0 0 10 12" fill="none">
-        <rect x="4" y="7" width="2" height="4" rx="0.5" fill="rgba(200,190,170,0.25)" />
-        <ellipse cx="5" cy="7" rx="3.5" ry="2.5" fill="rgba(170,120,90,0.2)" />
-        <ellipse cx="4" cy="6.5" rx="1" ry="0.6" fill="rgba(240,235,225,0.15)" />
+        <rect x="4" y="7" width="2" height="4" rx="0.5" fill="rgba(200,190,170,0.22)" />
+        <ellipse cx="5" cy="7" rx="3.5" ry="2.5" fill="rgba(160,115,85,0.18)" />
+        <ellipse cx="4" cy="6.5" rx="1" ry="0.6" fill="rgba(240,235,225,0.12)" />
       </svg>
     )
     case 'wildflower': return (
       <svg style={s} width="10" height="14" viewBox="0 0 10 14" fill="none">
-        <line x1="5" y1="8" x2="5" y2="13" stroke="rgba(100,140,70,0.2)" strokeWidth="0.5" />
-        <circle cx="5" cy="6" r="2.5" fill="rgba(250,245,240,0.25)" />
-        <circle cx="5" cy="6" r="1" fill="rgba(240,220,180,0.3)" />
+        <line x1="5" y1="8" x2="5" y2="13" stroke="rgba(90,130,65,0.18)" strokeWidth="0.5" />
+        <circle cx="5" cy="6" r="2.5" fill="rgba(250,245,240,0.22)" />
+        <circle cx="5" cy="6" r="1" fill="rgba(235,215,175,0.25)" />
       </svg>
     )
     case 'gravel': return (
       <svg style={s} width="16" height="10" viewBox="0 0 16 10" fill="none">
-        <ellipse cx="4" cy="5" rx="2" ry="1.2" fill="rgba(150,145,130,0.15)" />
-        <ellipse cx="9" cy="4" rx="1.5" ry="1" fill="rgba(140,135,120,0.12)" />
-        <ellipse cx="12" cy="6" rx="1.8" ry="1" fill="rgba(145,140,125,0.13)" />
-      </svg>
-    )
-    case 'stone': return (
-      <svg style={s} width="14" height="10" viewBox="0 0 14 10" fill="none">
-        <ellipse cx="7" cy="5" rx="5" ry="3.5" fill="rgba(140,135,120,0.18)" />
-        <ellipse cx="6" cy="4" rx="3" ry="2" fill="rgba(160,155,140,0.12)" />
+        <ellipse cx="4" cy="5" rx="2" ry="1.2" fill="rgba(148,142,128,0.14)" />
+        <ellipse cx="9" cy="4" rx="1.5" ry="1" fill="rgba(138,132,118,0.11)" />
+        <ellipse cx="12" cy="6" rx="1.8" ry="1" fill="rgba(142,136,122,0.12)" />
       </svg>
     )
     default: return null
@@ -382,50 +377,39 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
     const dstCell = grid[r]?.[c]
     if (!srcCell?.item || !dstCell) { dragSrc.current = null; setGhostPos(null); return }
 
-    // Habits: 2x2 special handling
     if (srcCell.item.kind === 'habit') {
-      // Find the TL corner of the habit
       const habit = srcCell.item
       if (habit.corner !== 'tl') { dragSrc.current = null; setGhostPos(null); return }
-      // Check if 2x2 fits at destination
       if (r + 1 >= side || c + 1 >= side) { dragSrc.current = null; setGhostPos(null); return }
       const destCells = [[r, c], [r, c + 1], [r + 1, c], [r + 1, c + 1]]
       const srcCells = [[src.r, src.c], [src.r, src.c + 1], [src.r + 1, src.c], [src.r + 1, src.c + 1]]
       const srcSet = new Set(srcCells.map(([cr, cc]) => `${cr},${cc}`))
-      // All dest cells must be empty or part of the same habit
       if (destCells.some(([cr, cc]) => {
         const cell = grid[cr]?.[cc]
         if (!cell) return true
-        if (cell.zone === 'path') return true
         if (cell.item && !srcSet.has(`${cr},${cc}`)) return true
         return false
       })) { dragSrc.current = null; setGhostPos(null); return }
 
       setGrid(prev => {
         const next = prev.map(row => row.map(cell => ({ ...cell })))
-        // Clear old position
         srcCells.forEach(([cr, cc]) => { next[cr][cc].item = null })
-        // Place at new position
         const corners: Array<'tl' | 'tr' | 'bl' | 'br'> = ['tl', 'tr', 'bl', 'br']
         destCells.forEach(([cr, cc], i) => {
           next[cr][cc].item = { ...habit, corner: corners[i] }
         })
         return next
       })
-      // Save position (TL corner)
       const positions = loadPositions()
       positions[habit.key] = { r, c }
       savePositions(positions)
     } else {
-      // 1x1 items: simple swap
       setGrid(prev => {
         const next = prev.map(row => row.map(cell => ({ ...cell })))
-        const temp = next[r][c].item
         next[r][c].item = prev[src.r][src.c].item
-        next[src.r][src.c].item = temp
+        next[src.r][src.c].item = prev[r][c].item
         return next
       })
-      // Save positions
       const positions = loadPositions()
       if (srcCell.item) positions[srcCell.item.key] = { r, c }
       if (dstCell.item) positions[dstCell.item.key] = { r: src.r, c: src.c }
@@ -441,12 +425,10 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
     setGhostPos(null)
   }, [])
 
-  // ── Right-click to remove ────────────────────────────────
-  const handleContextMenu = useCallback((e: React.MouseEvent, _key: string) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
   }, [])
 
-  // ── Tooltip ──────────────────────────────────────────────
   const handleItemClick = useCallback((info: TooltipInfo, e: React.MouseEvent) => {
     e.stopPropagation()
     const rect = (e.currentTarget as HTMLElement).closest('.terrarium-container')?.getBoundingClientRect()
@@ -489,8 +471,8 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
           {/* Subtle grid */}
           {Array.from({ length: side + 1 }).map((_, i) => (
             <div key={`g${i}`}>
-              <div className="absolute" style={{ left: 0, right: 0, top: i * CELL, height: 1, background: 'rgba(30,80,20,0.04)' }} />
-              <div className="absolute" style={{ top: 0, bottom: 0, left: i * CELL, width: 1, background: 'rgba(30,80,20,0.04)' }} />
+              <div className="absolute" style={{ left: 0, right: 0, top: i * CELL, height: 1, background: 'rgba(30,80,20,0.03)' }} />
+              <div className="absolute" style={{ top: 0, bottom: 0, left: i * CELL, width: 1, background: 'rgba(30,80,20,0.03)' }} />
             </div>
           ))}
 
@@ -516,7 +498,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
               )
             }
 
-            // ── Habit (2x2, render from TL only) ──
+            // ── Habit (2x2) ──
             if (item.kind === 'habit') {
               if (item.corner !== 'tl') return null
               const stage = plantStage(item.grind.current_streak)
@@ -527,12 +509,11 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                   transformStyle: 'preserve-3d', zIndex: zIdx, pointerEvents: 'none',
                 }}>
                   <div
-                    className={`${isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
+                    className={isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
                     style={{
                       position: 'absolute', left: '50%', top: '50%',
                       transform: 'translateZ(2px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, -80%)',
                       transformOrigin: '0 0', transformStyle: 'preserve-3d', pointerEvents: 'auto',
-                      transition: 'filter 0.3s',
                     }}
                     draggable={isDraggable}
                     onDragStart={isDraggable ? () => handleDragStart(r, c, item.key) : undefined}
@@ -541,7 +522,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                       type: 'habit', title: item.grind.title, createdAt: item.grind.created_at,
                       streak: item.grind.current_streak, bestStreak: item.grind.best_streak, health: item.health,
                     }, e)}
-                    onContextMenu={(e) => handleContextMenu(e, item.key)}
+                    onContextMenu={handleContextMenu}
                   >
                     <PlantSVG stage={stage} size="md" colorVariant={item.grind.color_variant} health={item.health} />
                   </div>
@@ -552,13 +533,25 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
             // ── 1x1 items ──
             const { dx, dy } = organicOffset(item.key)
             const isDraggable = !isMobile
-            const itemConfigs = {
-              pomodoro: { lift: '-60%', size: 42, z: 4 },
-              trophy: { lift: '-75%', size: 40, z: 4 },
-              audit: { lift: '-65%', size: 40, z: 4 },
-              prayer: { lift: '-60%', size: 38, z: 2 },
+
+            // Bush lift is less aggressive so they sit ON the ground
+            const liftMap = {
+              pomodoro: '-50%',
+              trophy: '-75%',
+              audit: '-65%',
+              prayer: '-55%',
             }
-            const cfg = itemConfigs[item.kind]
+            const sizeMap = {
+              pomodoro: 42,
+              trophy: 40,
+              audit: 40,
+              prayer: 38,
+            }
+            const zMap = { pomodoro: 3, trophy: 4, audit: 4, prayer: 2 }
+
+            const lift = liftMap[item.kind]
+            const sz = sizeMap[item.kind]
+            const zLift = zMap[item.kind]
 
             return (
               <div key={key} className="absolute" style={{
@@ -573,33 +566,28 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                   className={`${isDraggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${isGhost ? 'ring-2 ring-sage-400/50 rounded-full' : ''}`}
                   style={{
                     position: 'absolute', left: '50%', top: '50%',
-                    transform: `translateZ(${cfg.z}px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, ${cfg.lift})`,
+                    transform: `translateZ(${zLift}px) rotateZ(-45deg) rotateX(-55deg) translate(-50%, ${lift})`,
                     transformOrigin: '0 0', pointerEvents: 'auto',
                     transition: 'transform 0.2s ease',
                   }}
                   draggable={isDraggable}
                   onDragStart={isDraggable ? () => handleDragStart(r, c, item.key) : undefined}
                   onDragEnd={isDraggable ? handleDragEnd : undefined}
-                  onContextMenu={(e) => handleContextMenu(e, item.key)}
+                  onContextMenu={handleContextMenu}
                   onClick={(e) => {
-                    if (item.kind === 'pomodoro') {
-                      handleItemClick({ type: 'pomodoro', taskTitle: item.pomodoro.task_title, durationMinutes: item.pomodoro.duration_minutes, completedAt: item.pomodoro.completed_at }, e)
-                    } else if (item.kind === 'trophy') {
-                      const variant = trophyVariantFromId(item.task.id)
-                      const tier = trophyTier(item.task.steps?.length ?? 0)
-                      const { name: trophyName } = getTrophyConfig(variant, tier)
-                      handleItemClick({ type: 'trophy', title: item.task.title, completedAt: item.task.completed_at!, stepCount: item.task.steps?.length ?? 0, trophyName }, e)
-                    } else if (item.kind === 'audit') {
-                      handleItemClick({ type: 'audit', completedAt: item.audit.completed_at!, entryCount: item.audit.entries.length }, e)
-                    } else if (item.kind === 'prayer') {
-                      handleItemClick({ type: 'prayer' }, e)
+                    if (item.kind === 'pomodoro') handleItemClick({ type: 'pomodoro', taskTitle: item.pomodoro.task_title, durationMinutes: item.pomodoro.duration_minutes, completedAt: item.pomodoro.completed_at }, e)
+                    else if (item.kind === 'trophy') {
+                      const v = trophyVariantFromId(item.task.id), t = trophyTier(item.task.steps?.length ?? 0)
+                      handleItemClick({ type: 'trophy', title: item.task.title, completedAt: item.task.completed_at!, stepCount: item.task.steps?.length ?? 0, trophyName: getTrophyConfig(v, t).name }, e)
                     }
+                    else if (item.kind === 'audit') handleItemClick({ type: 'audit', completedAt: item.audit.completed_at!, entryCount: item.audit.entries.length }, e)
+                    else if (item.kind === 'prayer') handleItemClick({ type: 'prayer' }, e)
                   }}
                 >
-                  {item.kind === 'pomodoro' && <BushSVG stage={pomodoroStage(item.pomodoro.duration_minutes)} size={cfg.size} colorVariant={item.colorIndex} />}
-                  {item.kind === 'trophy' && <TrophySVG size={cfg.size} variant={trophyVariantFromId(item.task.id)} tier={trophyTier(item.task.steps?.length ?? 0)} />}
-                  {item.kind === 'audit' && <AuditBouquetSVG size={cfg.size} />}
-                  {item.kind === 'prayer' && <WhiteRoseSVG size={cfg.size} />}
+                  {item.kind === 'pomodoro' && <BushSVG stage={pomodoroStage(item.pomodoro.duration_minutes)} size={sz} colorVariant={item.colorIndex} />}
+                  {item.kind === 'trophy' && <TrophySVG size={sz} variant={trophyVariantFromId(item.task.id)} tier={trophyTier(item.task.steps?.length ?? 0)} />}
+                  {item.kind === 'audit' && <AuditBouquetSVG size={sz} />}
+                  {item.kind === 'prayer' && <WhiteRoseSVG size={sz} />}
                 </div>
               </div>
             )
