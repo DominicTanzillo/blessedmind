@@ -21,6 +21,14 @@ const VERSES = [
   { text: 'Start by doing what is necessary; then do what is possible; and suddenly you are doing the impossible.', ref: 'St. Francis of Assisi' },
   { text: 'Take therefore no thought for the morrow: for the morrow shall take thought for the things of itself. Sufficient unto the day is the evil thereof.', ref: 'Matthew 6:34' },
   { text: 'God does not ask for the impossible, but wants you to do what you can.', ref: 'St. Alphonsus Liguori' },
+  { text: 'If you won\'t sacrifice for what you want, what you want becomes the sacrifice.', ref: 'Fr. Pius' },
+  { text: 'No one who puts his hand to the plow and looks back is fit for the kingdom of God.', ref: 'Luke 9:62' },
+  { text: 'Flee from sin as from a snake.', ref: 'Sirach 21:2' },
+  { text: 'My grace is sufficient for you, for my power is made perfect in weakness.', ref: '2 Corinthians 12:9' },
+  { text: 'A righteous man falls seven times, and rises again.', ref: 'Proverbs 24:16' },
+  { text: 'Watch and pray that you may not enter into temptation.', ref: 'Matthew 26:41' },
+  { text: 'Abide in me, and I in you.', ref: 'John 15:4' },
+  { text: 'Whatever your task, work heartily, as serving the Lord.', ref: 'Colossians 3:23' },
 ]
 
 function getVerse() {

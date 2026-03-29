@@ -11,6 +11,8 @@ const COMPLETION_MESSAGES = [
   'Your hands found the work, and it is finished.',
   'Be still now. This one is done.',
   'Commit your work to the Lord, and your plans will be established.',
+  'I can do all things in him who strengthens me.',
+  'Whatever your task, work heartily, as serving the Lord.',
 ]
 
 const BATCH_COMPLETE_MESSAGES = [
@@ -31,6 +33,8 @@ const EMPTY_STATE_MESSAGES = [
   'The Lord is your shepherd. You shall not want.',
   'Peace I leave with you. My peace I give to you.',
   'Your mind is clear. Rest in His presence.',
+  'Abide in me, and I in you.',
+  'The Lord is near to the brokenhearted.',
 ]
 
 const BRAIN_DUMP_MESSAGES = [
@@ -82,6 +86,8 @@ const GRIND_COMPLETION_MESSAGES = [
   'Consistency is its own reward.',
   'Your garden is tended.',
   'A little each day moves mountains.',
+  'Let us not grow weary in well-doing.',
+  'A righteous man falls seven times, and rises again.',
 ]
 
 const GRIND_MILESTONE_MESSAGES: Record<number, string> = {
