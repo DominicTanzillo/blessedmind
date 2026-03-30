@@ -445,6 +445,23 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
 
   const gridPx = side * CELL
 
+  // Scale garden to fit narrow viewports — diamond is gridPx * √2 wide after 45° rotation
+  const gardenWrapperRef = useRef<HTMLDivElement>(null)
+  const [gardenScale, setGardenScale] = useState(1)
+  useEffect(() => {
+    const el = gardenWrapperRef.current
+    if (!el) return
+    const measure = () => {
+      const avail = el.clientWidth
+      const needed = gridPx * 1.42
+      setGardenScale(Math.min(1, avail / needed))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [gridPx])
+
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center gap-3">
@@ -453,10 +470,10 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
         <div className="h-px flex-1 bg-stone-200" />
       </div>
 
-      <div className="flex justify-center" style={{ perspective: '900px', perspectiveOrigin: '50% 40%', overflow: 'visible', paddingBottom: gridPx * 0.35 }}>
+      <div ref={gardenWrapperRef} className="flex justify-center" style={{ perspective: '900px', perspectiveOrigin: '50% 40%', overflow: 'visible', paddingBottom: gridPx * gardenScale * 0.35 }}>
         <div
           className="terrarium-container"
-          style={{ width: gridPx, height: gridPx, transform: 'rotateX(55deg) rotateZ(45deg)', transformStyle: 'preserve-3d', position: 'relative' }}
+          style={{ width: gridPx, height: gridPx, transform: `scale(${gardenScale}) rotateX(55deg) rotateZ(45deg)`, transformStyle: 'preserve-3d', position: 'relative' }}
           onClick={dismissTooltip}
         >
           {/* Ground */}
