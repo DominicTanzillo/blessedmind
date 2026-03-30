@@ -453,7 +453,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
         <div className="h-px flex-1 bg-stone-200" />
       </div>
 
-      <div className="flex justify-center pb-6" style={{ perspective: '900px', perspectiveOrigin: '50% 40%', overflow: 'visible' }}>
+      <div className="flex justify-center" style={{ perspective: '900px', perspectiveOrigin: '50% 40%', overflow: 'visible', paddingBottom: gridPx * 0.35 }}>
         <div
           className="terrarium-container"
           style={{ width: gridPx, height: gridPx, transform: 'rotateX(55deg) rotateZ(45deg)', transformStyle: 'preserve-3d', position: 'relative' }}
