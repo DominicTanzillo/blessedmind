@@ -4,8 +4,9 @@ import BushSVG from './BushSVG'
 import WhiteRoseSVG from './WhiteRoseSVG'
 import TrophySVG, { trophyVariantFromId, trophyTier, getTrophyConfig } from './TrophySVG'
 import AuditBouquetSVG from './AuditBouquetSVG'
+import NoteStackSVG from './NoteStackSVG'
 import { plantStage } from '../../hooks/useHabitTemplates'
-import type { Grind, Pomodoro, PlantHealth, Task, TimeAudit } from '../../types'
+import type { Grind, Pomodoro, PlantHealth, Task, TimeAudit, GardenArtifact } from '../../types'
 
 // ── Constants ────────────────────────────────────────────────
 const CELL = 44
@@ -54,6 +55,7 @@ type TooltipInfo =
   | { type: 'trophy'; title: string; completedAt: string; stepCount: number; trophyName: string }
   | { type: 'audit'; completedAt: string; entryCount: number }
   | { type: 'prayer' }
+  | { type: 'note_stack'; name: string; noteCount: number }
 
 type CellItem =
   | { kind: 'habit'; grind: Grind; corner: 'tl' | 'tr' | 'bl' | 'br'; health: PlantHealth; key: string }
@@ -61,6 +63,7 @@ type CellItem =
   | { kind: 'trophy'; task: Task; key: string }
   | { kind: 'audit'; audit: TimeAudit; key: string }
   | { kind: 'prayer'; index: number; key: string }
+  | { kind: 'note_stack'; artifact: GardenArtifact; key: string }
 
 type GroundFeature = 'moss' | 'clover' | 'pebble' | 'mushroom' | 'wildflower' | 'gravel' | 'stone' | null
 
@@ -74,6 +77,7 @@ interface Props {
   healthMap: Map<string, PlantHealth>
   completedHydras?: Task[]
   completedAudits?: TimeAudit[]
+  noteStacks?: GardenArtifact[]
 }
 
 // ── Persistence ──────────────────────────────────────────────
@@ -107,8 +111,9 @@ function buildGarden(
   audits: TimeAudit[],
   prayerCount: number,
   healthMap: Map<string, PlantHealth>,
+  noteStacks: GardenArtifact[] = [],
 ) {
-  const totalUnits = allHabits.length * 4 + prayerCount + trophies.length + audits.length + pomodoros.length
+  const totalUnits = allHabits.length * 4 + prayerCount + trophies.length + audits.length + pomodoros.length + noteStacks.length
   const desiredCells = Math.max(MIN_SIDE * MIN_SIDE, Math.ceil(totalUnits / ZEN_FILL))
   const side = Math.min(MAX_SIDE, Math.max(MIN_SIDE, Math.ceil(Math.sqrt(desiredCells))))
   const last = side - 1
@@ -175,6 +180,16 @@ function buildGarden(
     if (sv && placeHabit(sv.r, sv.c, g, health)) continue
     for (const [r, c] of habitCells) {
       if (placeHabit(r, c, g, health)) break
+    }
+  }
+
+  // ── Note stacks → BACK corner (near habits) ──
+  for (const ns of noteStacks) {
+    const key = `notestack:${ns.id}`
+    const sv = saved[key]
+    if (sv && place(sv.r, sv.c, { kind: 'note_stack', artifact: ns, key })) continue
+    for (const [r, c] of habitCells) {
+      if (place(r, c, { kind: 'note_stack', artifact: ns, key })) break
     }
   }
 
@@ -307,7 +322,7 @@ function GroundSVG({ feature }: { feature: GroundFeature }) {
 }
 
 // ── Component ────────────────────────────────────────────────
-export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayerCount, healthMap, completedHydras = [], completedAudits = [] }: Props) {
+export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayerCount, healthMap, completedHydras = [], completedAudits = [], noteStacks = [] }: Props) {
   const [tooltip, setTooltip] = useState<{ info: TooltipInfo; x: number; y: number } | null>(null)
   const isMobile = typeof window !== 'undefined' && 'ontouchstart' in window
 
@@ -317,7 +332,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
   )
 
   const layout = useMemo(() =>
-    buildGarden(allHabits, pomodoros, completedHydras, completedAudits, prayerCount, healthMap),
+    buildGarden(allHabits, pomodoros, completedHydras, completedAudits, prayerCount, healthMap, noteStacks),
     [allHabits, pomodoros, completedHydras, completedAudits, prayerCount, healthMap]
   )
 
@@ -566,10 +581,11 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
             // ── 1x1 items — lifted well above ground ──
             const { dx, dy } = organicOffset(item.key)
             const cfg = {
-              pomodoro: { lift: '-85%', z: 3, sz: 42 },
-              trophy:   { lift: '-85%', z: 3, sz: 40 },
-              audit:    { lift: '-85%', z: 3, sz: 40 },
-              prayer:   { lift: '-82%', z: 3, sz: 38 },
+              pomodoro:   { lift: '-85%', z: 3, sz: 42 },
+              trophy:     { lift: '-85%', z: 3, sz: 40 },
+              audit:      { lift: '-85%', z: 3, sz: 40 },
+              prayer:     { lift: '-82%', z: 3, sz: 38 },
+              note_stack: { lift: '-85%', z: 3, sz: 40 },
             }[item.kind]
 
             return (
@@ -595,11 +611,13 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                     else if (item.kind === 'trophy') { const v = trophyVariantFromId(item.task.id), t = trophyTier(item.task.steps?.length ?? 0); handleItemClick({ type: 'trophy', title: item.task.title, completedAt: item.task.completed_at!, stepCount: item.task.steps?.length ?? 0, trophyName: getTrophyConfig(v, t).name }, e) }
                     else if (item.kind === 'audit') handleItemClick({ type: 'audit', completedAt: item.audit.completed_at!, entryCount: item.audit.entries.length }, e)
                     else if (item.kind === 'prayer') handleItemClick({ type: 'prayer' }, e)
+                    else if (item.kind === 'note_stack') handleItemClick({ type: 'note_stack', name: item.artifact.name, noteCount: item.artifact.variant }, e)
                   }}>
                   {item.kind === 'pomodoro' && <BushSVG stage={pomodoroStage(item.pomodoro.duration_minutes)} size={cfg.sz} colorVariant={item.colorIndex} />}
                   {item.kind === 'trophy' && <TrophySVG size={cfg.sz} variant={trophyVariantFromId(item.task.id)} tier={trophyTier(item.task.steps?.length ?? 0)} />}
                   {item.kind === 'audit' && <AuditBouquetSVG size={cfg.sz} />}
                   {item.kind === 'prayer' && <WhiteRoseSVG size={cfg.sz} />}
+                  {item.kind === 'note_stack' && <NoteStackSVG size={cfg.sz} variant={item.artifact.variant} tier={item.artifact.tier} />}
                 </div>
               </div>
             )
@@ -614,6 +632,7 @@ export default function TerrariumGrid({ grinds, retiredGrinds, pomodoros, prayer
                 {tooltip.info.type === 'trophy' && (<div className="space-y-1"><p className="text-sm font-medium text-stone-800">{tooltip.info.title}</p><p className="text-xs text-amber-600 font-medium">{tooltip.info.trophyName}</p><p className="text-xs text-stone-400">{tooltip.info.stepCount} steps conquered</p><p className="text-xs text-stone-300">{new Date(tooltip.info.completedAt).toLocaleDateString()}</p></div>)}
                 {tooltip.info.type === 'audit' && (<div className="space-y-1"><p className="text-sm font-medium text-stone-800">Time Audit</p><p className="text-xs text-stone-400">{tooltip.info.entryCount} entries logged</p><p className="text-xs text-stone-300">{new Date(tooltip.info.completedAt).toLocaleDateString()}</p></div>)}
                 {tooltip.info.type === 'prayer' && (<div><p className="text-sm font-medium text-stone-800">Prayer completed</p></div>)}
+                {tooltip.info.type === 'note_stack' && (<div className="space-y-1"><p className="text-sm font-medium text-stone-800">{tooltip.info.name}</p><p className="text-xs text-amber-600 font-medium">{tooltip.info.noteCount} sticky notes</p></div>)}
               </div>
             </div>
           )}

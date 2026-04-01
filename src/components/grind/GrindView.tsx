@@ -4,9 +4,17 @@ import AddGrindForm from './AddGrindForm'
 import TerrariumGrid from './TerrariumGrid'
 import Modal from '../ui/Modal'
 import { plantStage, STAGE_NAMES } from '../../hooks/useHabitTemplates'
+import { useGarden } from '../../hooks/useGarden'
 import type { Grind, NewGrind, PlantHealth, Pomodoro, Task, TimeAudit } from '../../types'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+/** Wrapper that fetches garden artifacts and passes note_stacks to TerrariumGrid */
+function TerrariumGridWithArtifacts(props: React.ComponentProps<typeof TerrariumGrid>) {
+  const { artifacts } = useGarden()
+  const noteStacks = artifacts.filter(a => a.artifact_type === 'note_stack')
+  return <TerrariumGrid {...props} noteStacks={noteStacks} />
+}
 
 /** Turn plain-text URLs into clickable links */
 function Linkify({ text }: { text: string }) {
@@ -82,7 +90,7 @@ export default function GrindView({ grinds, retiredGrinds, healthMap, onAdd, onD
 
       {/* Terrarium Grid — main focus, above habits */}
       {(grinds.length > 0 || retiredGrinds.length > 0 || pomodoros.length > 0) && (
-        <TerrariumGrid grinds={grinds} retiredGrinds={retiredGrinds} pomodoros={pomodoros} prayerCount={prayerCount} healthMap={healthMap} completedHydras={completedHydras} completedAudits={completedAudits} />
+        <TerrariumGridWithArtifacts grinds={grinds} retiredGrinds={retiredGrinds} pomodoros={pomodoros} prayerCount={prayerCount} healthMap={healthMap} completedHydras={completedHydras} completedAudits={completedAudits} />
       )}
 
       {/* Active grinds */}

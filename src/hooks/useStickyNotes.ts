@@ -167,8 +167,28 @@ export function useStickyNotes() {
     }).eq('id', id)
   }, [])
 
+  const retireStack = useCallback(async (name: string) => {
+    if (completedNotes.length === 0) return
+    const rareCount = completedNotes.filter(n => {
+      const roll = hashStr(n.id) % 100
+      return roll < 3 // blue or green
+    }).length
+    await supabase.from('garden_artifacts').insert({
+      artifact_type: 'note_stack',
+      name,
+      variant: completedNotes.length,
+      tier: rareCount,
+    })
+    // Delete all completed friction items
+    const ids = completedNotes.flatMap(n => n.items.map(i => i.id))
+    if (ids.length > 0) {
+      await supabase.from('items').delete().in('id', ids)
+      setItems(prev => prev.filter(i => !ids.includes(i.id)))
+    }
+  }, [completedNotes])
+
   return {
     activeNote1, activeNote2, completedNotes, canStartNote1, canStartNote2,
-    loading, addItem, toggleItem, deleteItem, promoteToTask, showOnFocus, toggleShowOnFocus,
+    loading, addItem, toggleItem, deleteItem, promoteToTask, retireStack, showOnFocus, toggleShowOnFocus,
   }
 }

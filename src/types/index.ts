@@ -83,7 +83,7 @@ export interface FocusBatch {
 // ── Garden Artifacts (persistent garden) ───────────────────
 export interface GardenArtifact {
   id: string
-  artifact_type: 'plant' | 'bush' | 'trophy' | 'rose' | 'bouquet'
+  artifact_type: 'plant' | 'bush' | 'trophy' | 'rose' | 'bouquet' | 'note_stack'
   item_id: string | null
   template_id: string | null
   variant: number
