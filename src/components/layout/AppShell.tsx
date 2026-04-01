@@ -16,13 +16,12 @@ export default function AppShell({ onLogout, onAddClick, taskCount, waitingCount
   const { pathname } = useLocation()
   const { todayItems, showOnFocus, toggleItem } = useStickyNotes()
   const onFocus = pathname === '/'
-  const incompleteToday = todayItems.filter(i => !i.completed)
 
-  // Split incomplete items between left and right margins
-  const showMargins = onFocus && showOnFocus && incompleteToday.length > 0
-  const mid = Math.ceil(incompleteToday.length / 2)
-  const leftItems = incompleteToday.slice(0, mid)
-  const rightItems = incompleteToday.slice(mid)
+  // Show all today's items (completed ones get line-through, drift off when all done)
+  const showMargins = onFocus && showOnFocus && todayItems.length > 0
+  const mid = Math.ceil(todayItems.length / 2)
+  const leftItems = todayItems.slice(0, mid)
+  const rightItems = todayItems.slice(mid)
 
   return (
     <div className="min-h-screen bg-sage-50" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
