@@ -70,13 +70,17 @@ export function useFriction() {
   }, [previousItems])
 
   const addItem = useCallback(async (title: string) => {
-    await supabase.from('items').insert({
+    const { data, error } = await supabase.from('items').insert({
       title,
       description: '',
       item_type: 'friction',
       priority: 3,
       category: 'general',
-    })
+    }).select().single()
+
+    if (!error && data) {
+      setItems(prev => prev.some(i => i.id === data.id) ? prev : [data as Item, ...prev])
+    }
   }, [])
 
   const toggleItem = useCallback(async (id: string, currentlyCompleted: boolean) => {
