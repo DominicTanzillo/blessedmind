@@ -49,6 +49,7 @@ export default function Header({ onLogout, taskCount, waitingCount, overdueWaiti
               </span>
             )}
           </Link>
+          <Link to="/friction" className={linkClass('/friction')}>Friction</Link>
           <Link to="/pray" className={linkClass('/pray')}>Pray</Link>
         </nav>
 

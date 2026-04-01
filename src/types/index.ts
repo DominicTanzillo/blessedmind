@@ -21,7 +21,7 @@ export interface TimeAudit {
 }
 
 // ── Unified Item model ─────────────────────────────────────
-export type ItemType = 'task' | 'step' | 'habit_entry' | 'prayer' | 'audit'
+export type ItemType = 'task' | 'step' | 'habit_entry' | 'prayer' | 'audit' | 'friction'
 
 export interface Item {
   id: string
