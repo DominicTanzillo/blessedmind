@@ -16,7 +16,7 @@ import GrindView from './components/grind/GrindView'
 import PrayerView from './components/prayer/PrayerView'
 import MissedDaysDialog from './components/grind/MissedDaysDialog'
 import AddTaskForm from './components/inbox/AddTaskForm'
-import FrictionView from './components/friction/FrictionView'
+import StickyNotesView from './components/stickynotes/StickyNotesView'
 import PomodoroOverlay from './components/pomodoro/PomodoroOverlay'
 import Modal from './components/ui/Modal'
 import WaitingDatePrompt from './components/waiting/WaitingDatePrompt'
@@ -195,7 +195,7 @@ export default function App() {
           <Route path="inbox" element={inboxEl} />
           <Route path="waiting" element={waitingEl} />
           <Route path="grind" element={grindEl} />
-          <Route path="friction" element={<FrictionView />} />
+          <Route path="notes" element={<StickyNotesView />} />
           <Route path="pray" element={
             <PrayerView
               onPrayerComplete={recordPrayer}

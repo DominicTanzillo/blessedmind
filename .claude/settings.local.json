@@ -27,7 +27,13 @@
       "Bash(npm run build:*)",
       "Bash(file:*)",
       "Bash(npm run dev:*)",
-      "Bash(start \"\" \"C:\\\\Users\\\\virtu\\\\Documents\\\\AllostaticReducer\\\\plant-preview.html\")"
+      "Bash(start \"\" \"C:\\\\Users\\\\virtu\\\\Documents\\\\AllostaticReducer\\\\plant-preview.html\")",
+      "Bash(cp mcp-server/index.js blessedmind-plugin/server/)",
+      "Bash(cp mcp-server/package.json blessedmind-plugin/server/)",
+      "Bash(cp mcp-server/.env blessedmind-plugin/server/)",
+      "Bash(cp -r mcp-server/node_modules blessedmind-plugin/server/)",
+      "Bash(cp .claude/commands/plan.md blessedmind-plugin/commands/)",
+      "Bash(zip -r ../blessedmind.zip .claude-plugin/ .mcp.json commands/ server/)"
     ]
   }
 }

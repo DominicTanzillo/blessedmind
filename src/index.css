@@ -169,6 +169,29 @@ body {
   animation: none;
 }
 
+/* Sticky note drift-off when all items completed */
+@keyframes driftLeft {
+  0% { opacity: 1; transform: rotate(var(--note-rot, -2deg)) translateX(0) translateY(0); }
+  100% { opacity: 0; transform: rotate(-15deg) translateX(-80px) translateY(-40px) scale(0.7); }
+}
+@keyframes driftRight {
+  0% { opacity: 1; transform: rotate(var(--note-rot, 2deg)) translateX(0) translateY(0); }
+  100% { opacity: 0; transform: rotate(15deg) translateX(80px) translateY(-40px) scale(0.7); }
+}
+@keyframes stickyIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-drift-left {
+  animation: driftLeft 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+.animate-drift-right {
+  animation: driftRight 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+.animate-sticky-in {
+  animation: stickyIn 0.4s ease-out both;
+}
+
 /* Terrarium grid line clamp */
 .line-clamp-2 {
   display: -webkit-box;
