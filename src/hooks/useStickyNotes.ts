@@ -51,8 +51,20 @@ export function useStickyNotes() {
   const [loading, setLoading] = useState(true)
   const [showOnFocus, setShowOnFocus] = useState(() => localStorage.getItem(LS_KEY) === 'true')
 
+  // Sync showOnFocus across all hook instances on the same page
+  useEffect(() => {
+    const handler = () => setShowOnFocus(localStorage.getItem(LS_KEY) === 'true')
+    window.addEventListener('stickynotes-toggle', handler)
+    return () => window.removeEventListener('stickynotes-toggle', handler)
+  }, [])
+
   const toggleShowOnFocus = useCallback(() => {
-    setShowOnFocus(prev => { const n = !prev; localStorage.setItem(LS_KEY, String(n)); return n })
+    setShowOnFocus(prev => {
+      const n = !prev
+      localStorage.setItem(LS_KEY, String(n))
+      window.dispatchEvent(new Event('stickynotes-toggle'))
+      return n
+    })
   }, [])
 
   const fetchItems = useCallback(async () => {
