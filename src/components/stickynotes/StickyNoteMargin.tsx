@@ -18,7 +18,7 @@ export default function StickyNoteMargin({ items, noteId, side, onToggle }: Prop
 
   useEffect(() => {
     if (allDone && !drifting) {
-      const t = setTimeout(() => setDrifting(true), 800)
+      const t = setTimeout(() => setDrifting(true), 600)
       return () => clearTimeout(t)
     }
     if (!allDone) { setDrifting(false); setHidden(false) }
@@ -26,14 +26,23 @@ export default function StickyNoteMargin({ items, noteId, side, onToggle }: Prop
 
   if (hidden || items.length === 0) return null
 
+  // Use CSS transition (reliable) instead of animation class swap (flaky)
+  const driftTransform = drifting
+    ? `rotate(${side === 'left' ? -12 : 12}deg) translateX(${side === 'left' ? -60 : 60}px) translateY(60px) scale(0.7)`
+    : `rotate(${rot}deg)`
+
   return (
     <div
-      className={drifting ? (side === 'left' ? 'animate-drift-left' : 'animate-drift-right') : 'animate-sticky-in'}
-      onAnimationEnd={() => { if (drifting) setHidden(true) }}
+      style={{
+        transition: drifting ? 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : undefined,
+        opacity: drifting ? 0 : 1,
+        transform: driftTransform,
+      }}
+      onTransitionEnd={() => { if (drifting) setHidden(true) }}
     >
       <div
         className="w-44 p-3 rounded-sm shadow-md relative"
-        style={{ background: `linear-gradient(135deg, ${c.bg}, ${c.accent})`, transform: `rotate(${rot}deg)` }}
+        style={{ background: `linear-gradient(135deg, ${c.bg}, ${c.accent})` }}
       >
         {/* Fold corner */}
         <div className="absolute top-0 right-0 w-5 h-5" style={{
