@@ -14,9 +14,9 @@ interface Props {
 
 export default function AppShell({ onLogout, onAddClick, taskCount, waitingCount, overdueWaitingCount = 0 }: Props) {
   const { pathname } = useLocation()
-  const { note1Items, note2Items, showOnFocus, toggleItem } = useStickyNotes()
+  const { activeNote1, activeNote2, showOnFocus, toggleItem } = useStickyNotes()
   const onFocus = pathname === '/'
-  const showMargins = onFocus && showOnFocus && (note1Items.length > 0 || note2Items.length > 0)
+  const showMargins = onFocus && showOnFocus && (activeNote1 !== null || activeNote2 !== null)
 
   return (
     <div className="min-h-screen bg-sage-50" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
@@ -27,14 +27,14 @@ export default function AppShell({ onLogout, onAddClick, taskCount, waitingCount
       <MobileNav onAddClick={onAddClick} overdueWaitingCount={overdueWaitingCount} />
 
       {/* Sticky notes in margins — desktop only, Focus page only */}
-      {showMargins && note1Items.length > 0 && (
+      {showMargins && activeNote1 && (
         <div className="hidden xl:block fixed top-24" style={{ left: 'max(1rem, calc(50% - 24rem - 13rem))' }}>
-          <StickyNoteMargin items={note1Items} side="left" onToggle={toggleItem} colorIndex={0} />
+          <StickyNoteMargin items={activeNote1.items} side="left" onToggle={toggleItem} colorIndex={0} />
         </div>
       )}
-      {showMargins && note2Items.length > 0 && (
+      {showMargins && activeNote2 && (
         <div className="hidden xl:block fixed top-24" style={{ right: 'max(1rem, calc(50% - 24rem - 13rem))' }}>
-          <StickyNoteMargin items={note2Items} side="right" onToggle={toggleItem} colorIndex={1} />
+          <StickyNoteMargin items={activeNote2.items} side="right" onToggle={toggleItem} colorIndex={1} />
         </div>
       )}
     </div>
