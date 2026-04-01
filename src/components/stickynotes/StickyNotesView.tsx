@@ -44,10 +44,6 @@ function ActiveNote({ note, slot, onAdd, onToggle, onPromote, onDelete }: {
   onDelete: (id: string) => void
 }) {
   const [input, setInput] = useState('')
-  // Stable color for empty slots — don't use Date.now() which changes every render
-  const color = note ? noteColor(note.id) : noteColor(`empty-slot-${slot}`)
-  const hasLines = note ? noteHasLines(note.id) : false
-  const rot = note ? noteRotation(note.id) : (slot === 0 ? -1 : 1)
   const allDone = note !== null && note.items.length > 0 && note.items.every(i => i.completed)
 
   function handleAdd(e: FormEvent) {
@@ -56,6 +52,29 @@ function ActiveNote({ note, slot, onAdd, onToggle, onPromote, onDelete }: {
     onAdd(input.trim(), slot)
     setInput('')
   }
+
+  // No note yet — show just a + button to start one
+  if (!note) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[120px] rounded-xl border-2 border-dashed border-stone-200 text-stone-400">
+        <form onSubmit={handleAdd} className="flex flex-col items-center gap-2 w-full px-6">
+          <input type="text" value={input} onChange={e => setInput(e.target.value)}
+            placeholder="First item..."
+            className="w-full bg-transparent border-b border-stone-200 text-sm py-1 px-0 text-stone-600 placeholder:text-stone-300 focus:outline-none focus:border-sage-400 transition text-center" />
+          <button type="submit" disabled={!input.trim()}
+            className="w-8 h-8 rounded-full bg-stone-100 hover:bg-amber-100 text-stone-400 hover:text-amber-600 text-lg font-bold transition disabled:opacity-30">
+            +
+          </button>
+          <span className="text-[10px] text-stone-300">{slot === 0 ? 'Left' : 'Right'} note</span>
+        </form>
+      </div>
+    )
+  }
+
+  // Has a note — show the colored sticky card
+  const color = noteColor(note.id)
+  const hasLines = noteHasLines(note.id)
+  const rot = noteRotation(note.id)
 
   return (
     <div
@@ -74,25 +93,21 @@ function ActiveNote({ note, slot, onAdd, onToggle, onPromote, onDelete }: {
 
       <div className="flex items-center justify-between mb-2 relative">
         <span className="text-xs font-medium opacity-50" style={{ color: color.text }}>Note {slot + 1}</span>
-        {note && note.items.length > 0 && (
-          <span className="text-[10px] opacity-35" style={{ color: color.text }}>
-            {note.items.filter(i => i.completed).length}/{note.items.length}
-          </span>
-        )}
+        <span className="text-[10px] opacity-35" style={{ color: color.text }}>
+          {note.items.filter(i => i.completed).length}/{note.items.length}
+        </span>
       </div>
 
-      {note && note.items.length > 0 && (
-        <div className="space-y-0.5 mb-2 relative">
-          {note.items.map(item => (
-            <NoteItem key={item.id} item={item} color={color} onToggle={onToggle} onPromote={onPromote} onDelete={onDelete} />
-          ))}
-        </div>
-      )}
+      <div className="space-y-0.5 mb-2 relative">
+        {note.items.map(item => (
+          <NoteItem key={item.id} item={item} color={color} onToggle={onToggle} onPromote={onPromote} onDelete={onDelete} />
+        ))}
+      </div>
 
       {!allDone && (
         <form onSubmit={handleAdd} className="flex gap-1 relative">
           <input type="text" value={input} onChange={e => setInput(e.target.value)}
-            placeholder={note ? 'Add to note...' : 'Start a note...'}
+            placeholder="Add to note..."
             className="flex-1 bg-transparent border-b border-current/20 text-sm py-1 px-0 placeholder:opacity-25 focus:outline-none focus:border-current/40 transition"
             style={{ color: color.text }} />
           <button type="submit" disabled={!input.trim()} className="text-sm font-bold px-1.5 transition disabled:opacity-20" style={{ color: color.check }}>+</button>
