@@ -2,19 +2,24 @@ import { useState, type FormEvent } from 'react'
 import { useStickyNotes } from '../../hooks/useStickyNotes'
 import type { Item } from '../../types'
 
-const NOTE_COLORS = [
-  { bg: '#fef3c7', accent: '#fde68a', text: '#78350f', check: '#b45309' },
-  { bg: '#ffedd5', accent: '#fdba74', text: '#7c2d12', check: '#c2410c' },
-  { bg: '#fef9c3', accent: '#fde047', text: '#713f12', check: '#a16207' },
+const NOTE_STYLES = [
+  { bg: '#fef3c7', accent: '#fde68a', text: '#78350f', check: '#b45309', label: 'Note 1' },
+  { bg: '#ffedd5', accent: '#fdba74', text: '#7c2d12', check: '#c2410c', label: 'Note 2' },
+]
+
+const PREV_COLORS = [
+  { bg: '#fef9c3', accent: '#fde047', text: '#713f12' },
+  { bg: '#ffedd5', accent: '#fdba74', text: '#7c2d12' },
+  { bg: '#fef3c7', accent: '#fde68a', text: '#78350f' },
 ]
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-function NoteItem({ item, color, onToggle, onPromote, onDelete }: {
+function NoteItem({ item, style, onToggle, onPromote, onDelete }: {
   item: Item
-  color: typeof NOTE_COLORS[0]
+  style: typeof NOTE_STYLES[0]
   onToggle: (id: string, completed: boolean) => void
   onPromote: (id: string) => void
   onDelete: (id: string) => void
@@ -25,8 +30,8 @@ function NoteItem({ item, color, onToggle, onPromote, onDelete }: {
         onClick={() => onToggle(item.id, item.completed)}
         className="w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-all"
         style={{
-          borderColor: item.completed ? color.check : 'rgba(0,0,0,0.2)',
-          backgroundColor: item.completed ? color.check : 'transparent',
+          borderColor: item.completed ? style.check : 'rgba(0,0,0,0.2)',
+          backgroundColor: item.completed ? style.check : 'transparent',
         }}
       >
         {item.completed && (
@@ -35,16 +40,16 @@ function NoteItem({ item, color, onToggle, onPromote, onDelete }: {
           </svg>
         )}
       </button>
-      <span className={`flex-1 text-sm leading-snug transition-all ${item.completed ? 'line-through opacity-50' : ''}`} style={{ color: color.text }}>
+      <span className={`flex-1 text-sm leading-snug transition-all ${item.completed ? 'line-through opacity-50' : ''}`} style={{ color: style.text }}>
         {item.title}
       </span>
       <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={() => onPromote(item.id)} className="p-0.5 rounded opacity-40 hover:opacity-100 transition" style={{ color: color.text }} title="Promote to task">
+        <button onClick={() => onPromote(item.id)} className="p-0.5 rounded opacity-40 hover:opacity-100 transition" style={{ color: style.text }} title="Promote to task">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
           </svg>
         </button>
-        <button onClick={() => onDelete(item.id)} className="p-0.5 rounded opacity-40 hover:opacity-100 transition" style={{ color: color.text }} title="Remove">
+        <button onClick={() => onDelete(item.id)} className="p-0.5 rounded opacity-40 hover:opacity-100 transition" style={{ color: style.text }} title="Remove">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -54,60 +59,83 @@ function NoteItem({ item, color, onToggle, onPromote, onDelete }: {
   )
 }
 
-function StickyCard({ items, color, rotation, label, onToggle, onPromote, onDelete, children }: {
-  items?: Item[]
-  color: typeof NOTE_COLORS[0]
+function StickyNote({ items, noteIndex, style, rotation, onAdd, onToggle, onPromote, onDelete }: {
+  items: Item[]
+  noteIndex: number
+  style: typeof NOTE_STYLES[0]
   rotation: number
-  label?: string
+  onAdd: (title: string, noteIndex: number) => void
   onToggle: (id: string, completed: boolean) => void
   onPromote: (id: string) => void
   onDelete: (id: string) => void
-  children?: React.ReactNode
 }) {
-  const done = items?.filter(i => i.completed).length ?? 0
+  const [input, setInput] = useState('')
+  const [drifted, setDrifted] = useState(false)
+  const allDone = items.length > 0 && items.every(i => i.completed)
+
+  function handleAdd(e: FormEvent) {
+    e.preventDefault()
+    if (!input.trim()) return
+    onAdd(input.trim(), noteIndex)
+    setInput('')
+  }
+
+  // Reset drift if new items appear
+  if (!allDone && drifted) setDrifted(false)
+
+  if (drifted) return null
+
+  const done = items.filter(i => i.completed).length
+
   return (
     <div
-      className="rounded-sm shadow-md p-4 relative transition-transform duration-300 hover:shadow-lg"
-      style={{ background: `linear-gradient(135deg, ${color.bg}, ${color.accent})`, transform: `rotate(${rotation}deg)` }}
+      className={`rounded-sm shadow-md p-4 relative transition-all duration-500 ${allDone ? 'opacity-0 scale-95 pointer-events-none' : ''}`}
+      style={{ background: `linear-gradient(135deg, ${style.bg}, ${style.accent})`, transform: `rotate(${rotation}deg)` }}
+      onTransitionEnd={() => { if (allDone) setDrifted(true) }}
     >
       {/* Fold corner */}
       <div className="absolute top-0 right-0 w-6 h-6" style={{
         background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)',
       }} />
 
-      {label && (
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-medium opacity-60" style={{ color: color.text }}>{label}</span>
-          {items && items.length > 0 && (
-            <span className="text-[10px] opacity-40" style={{ color: color.text }}>{done}/{items.length}</span>
-          )}
-        </div>
-      )}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium opacity-60" style={{ color: style.text }}>{style.label}</span>
+        {items.length > 0 && (
+          <span className="text-[10px] opacity-40" style={{ color: style.text }}>{done}/{items.length}</span>
+        )}
+      </div>
 
-      {children}
-
-      {items && (
-        <div className="space-y-0.5">
+      {/* Items */}
+      {items.length > 0 && (
+        <div className="space-y-0.5 mb-2">
           {items.map(item => (
-            <NoteItem key={item.id} item={item} color={color} onToggle={onToggle} onPromote={onPromote} onDelete={onDelete} />
+            <NoteItem key={item.id} item={item} style={style} onToggle={onToggle} onPromote={onPromote} onDelete={onDelete} />
           ))}
         </div>
       )}
+
+      {/* Add input */}
+      <form onSubmit={handleAdd} className="flex gap-1">
+        <input
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="Jot a note..."
+          className="flex-1 bg-transparent border-b border-current/20 text-sm py-1 px-0 placeholder:opacity-30 focus:outline-none focus:border-current/40 transition"
+          style={{ color: style.text }}
+        />
+        <button type="submit" disabled={!input.trim()} className="text-sm font-bold px-1.5 transition disabled:opacity-20" style={{ color: style.check }}>
+          +
+        </button>
+      </form>
     </div>
   )
 }
 
 export default function StickyNotesView() {
-  const { todayItems, groupedPrevious, loading, addItem, toggleItem, deleteItem, promoteToTask, showOnFocus, toggleShowOnFocus } = useStickyNotes()
-  const [newItem, setNewItem] = useState('')
+  const { note1Items, note2Items, groupedPrevious, loading, addItem, toggleItem, deleteItem, promoteToTask, showOnFocus, toggleShowOnFocus } = useStickyNotes()
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
-
-  function handleAdd(e: FormEvent) {
-    e.preventDefault()
-    if (!newItem.trim()) return
-    addItem(newItem.trim())
-    setNewItem('')
-  }
 
   function toggleDate(date: string) {
     setExpandedDates(prev => { const n = new Set(prev); if (n.has(date)) n.delete(date); else n.add(date); return n })
@@ -131,7 +159,6 @@ export default function StickyNotesView() {
           <h1 className="text-xl font-semibold text-stone-800">Sticky Notes</h1>
           <p className="text-sm text-stone-400 mt-1">{today}</p>
         </div>
-        {/* Show on Focus toggle — desktop only */}
         <label className="hidden lg:flex items-center gap-2 cursor-pointer select-none mt-1">
           <span className="text-xs text-stone-400">Show on Focus</span>
           <div onClick={toggleShowOnFocus} className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${showOnFocus ? 'bg-amber-400' : 'bg-stone-200'}`}>
@@ -140,39 +167,31 @@ export default function StickyNotesView() {
         </label>
       </div>
 
-      {/* Add input — styled like writing on a fresh note */}
-      <form onSubmit={handleAdd}>
-        <StickyCard color={NOTE_COLORS[0]} rotation={0} onToggle={toggleItem} onPromote={promoteToTask} onDelete={deleteItem}>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newItem}
-              onChange={e => setNewItem(e.target.value)}
-              placeholder="Jot a note..."
-              className="flex-1 bg-transparent border-b border-amber-800/20 text-sm py-1 px-0 placeholder-amber-800/30 focus:outline-none focus:border-amber-800/40 transition"
-              style={{ color: NOTE_COLORS[0].text }}
-            />
-            <button type="submit" disabled={!newItem.trim()} className="text-xs font-medium px-2 py-1 rounded transition disabled:opacity-30" style={{ color: NOTE_COLORS[0].check }}>
-              +
-            </button>
-          </div>
-        </StickyCard>
-      </form>
-
-      {/* Today's note */}
-      {todayItems.length > 0 && (
-        <StickyCard
-          items={todayItems}
-          color={NOTE_COLORS[0]}
-          rotation={-1}
-          label="Today"
+      {/* Two sticky notes side by side */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <StickyNote
+          items={note1Items}
+          noteIndex={0}
+          style={NOTE_STYLES[0]}
+          rotation={-1.5}
+          onAdd={addItem}
           onToggle={toggleItem}
           onPromote={promoteToTask}
           onDelete={deleteItem}
         />
-      )}
+        <StickyNote
+          items={note2Items}
+          noteIndex={1}
+          style={NOTE_STYLES[1]}
+          rotation={1}
+          onAdd={addItem}
+          onToggle={toggleItem}
+          onPromote={promoteToTask}
+          onDelete={deleteItem}
+        />
+      </div>
 
-      {/* Previous days — growing stack */}
+      {/* Previous days */}
       {groupedPrevious.length > 0 && (
         <div>
           <div className="flex items-center gap-3 mb-4">
@@ -183,7 +202,7 @@ export default function StickyNotesView() {
 
           <div className="space-y-3">
             {groupedPrevious.map(([date, dateItems], i) => {
-              const color = NOTE_COLORS[(i + 1) % NOTE_COLORS.length]
+              const color = PREV_COLORS[i % PREV_COLORS.length]
               const expanded = expandedDates.has(date)
               const done = dateItems.filter(d => d.completed).length
               const rotation = i % 2 === 0 ? 1.5 : -1
@@ -209,14 +228,17 @@ export default function StickyNotesView() {
                   <button onClick={() => toggleDate(date)} className="text-xs text-stone-400 mb-1 hover:text-stone-600 transition">
                     {formatDate(date)} −
                   </button>
-                  <StickyCard
-                    items={dateItems}
-                    color={color}
-                    rotation={rotation}
-                    onToggle={toggleItem}
-                    onPromote={promoteToTask}
-                    onDelete={deleteItem}
-                  />
+                  <div
+                    className="rounded-sm shadow-md p-4 relative"
+                    style={{ background: `linear-gradient(135deg, ${color.bg}, ${color.accent})`, transform: `rotate(${rotation}deg)` }}
+                  >
+                    <div className="absolute top-0 right-0 w-6 h-6" style={{ background: 'linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.05) 50%)' }} />
+                    <div className="space-y-0.5">
+                      {dateItems.map(item => (
+                        <NoteItem key={item.id} item={item} style={{ ...NOTE_STYLES[0], ...color, check: '#b45309' }} onToggle={toggleItem} onPromote={promoteToTask} onDelete={deleteItem} />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )
             })}

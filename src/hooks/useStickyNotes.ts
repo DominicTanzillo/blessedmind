@@ -59,8 +59,13 @@ export function useStickyNotes() {
 
   const today = new Date().toLocaleDateString('en-CA')
 
-  const todayItems = useMemo(() =>
-    items.filter(i => i.created_at.split('T')[0] === today),
+  // Two sticky notes: position 0 = note 1 (left), position 1 = note 2 (right)
+  const note1Items = useMemo(() =>
+    items.filter(i => i.created_at.split('T')[0] === today && (i.position ?? 0) === 0),
+    [items, today]
+  )
+  const note2Items = useMemo(() =>
+    items.filter(i => i.created_at.split('T')[0] === today && i.position === 1),
     [items, today]
   )
 
@@ -75,9 +80,10 @@ export function useStickyNotes() {
     return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a))
   }, [items, today])
 
-  const addItem = useCallback(async (title: string) => {
+  const addItem = useCallback(async (title: string, noteIndex: number = 0) => {
     const { data, error } = await supabase.from('items').insert({
       title, description: '', item_type: 'friction', priority: 3, category: 'general',
+      position: noteIndex,
     }).select().single()
     if (!error && data) {
       setItems(prev => prev.some(i => i.id === data.id) ? prev : [data as Item, ...prev])
@@ -108,5 +114,5 @@ export function useStickyNotes() {
     }).eq('id', id)
   }, [])
 
-  return { todayItems, groupedPrevious, loading, addItem, toggleItem, deleteItem, promoteToTask, showOnFocus, toggleShowOnFocus }
+  return { note1Items, note2Items, groupedPrevious, loading, addItem, toggleItem, deleteItem, promoteToTask, showOnFocus, toggleShowOnFocus }
 }

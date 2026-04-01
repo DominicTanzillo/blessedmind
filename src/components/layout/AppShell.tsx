@@ -14,14 +14,9 @@ interface Props {
 
 export default function AppShell({ onLogout, onAddClick, taskCount, waitingCount, overdueWaitingCount = 0 }: Props) {
   const { pathname } = useLocation()
-  const { todayItems, showOnFocus, toggleItem } = useStickyNotes()
+  const { note1Items, note2Items, showOnFocus, toggleItem } = useStickyNotes()
   const onFocus = pathname === '/'
-
-  // Show all today's items (completed ones get line-through, drift off when all done)
-  const showMargins = onFocus && showOnFocus && todayItems.length > 0
-  const mid = Math.ceil(todayItems.length / 2)
-  const leftItems = todayItems.slice(0, mid)
-  const rightItems = todayItems.slice(mid)
+  const showMargins = onFocus && showOnFocus && (note1Items.length > 0 || note2Items.length > 0)
 
   return (
     <div className="min-h-screen bg-sage-50" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
@@ -32,14 +27,14 @@ export default function AppShell({ onLogout, onAddClick, taskCount, waitingCount
       <MobileNav onAddClick={onAddClick} overdueWaitingCount={overdueWaitingCount} />
 
       {/* Sticky notes in margins — desktop only, Focus page only */}
-      {showMargins && leftItems.length > 0 && (
+      {showMargins && note1Items.length > 0 && (
         <div className="hidden xl:block fixed top-24" style={{ left: 'max(1rem, calc(50% - 24rem - 13rem))' }}>
-          <StickyNoteMargin items={leftItems} side="left" onToggle={toggleItem} colorIndex={0} />
+          <StickyNoteMargin items={note1Items} side="left" onToggle={toggleItem} colorIndex={0} />
         </div>
       )}
-      {showMargins && rightItems.length > 0 && (
+      {showMargins && note2Items.length > 0 && (
         <div className="hidden xl:block fixed top-24" style={{ right: 'max(1rem, calc(50% - 24rem - 13rem))' }}>
-          <StickyNoteMargin items={rightItems} side="right" onToggle={toggleItem} colorIndex={1} />
+          <StickyNoteMargin items={note2Items} side="right" onToggle={toggleItem} colorIndex={1} />
         </div>
       )}
     </div>
