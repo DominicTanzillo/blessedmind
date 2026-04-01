@@ -44,7 +44,8 @@ function ActiveNote({ note, slot, onAdd, onToggle, onPromote, onDelete }: {
   onDelete: (id: string) => void
 }) {
   const [input, setInput] = useState('')
-  const color = note ? noteColor(note.id) : noteColor(`empty-${slot}-${Date.now()}`)
+  // Stable color for empty slots — don't use Date.now() which changes every render
+  const color = note ? noteColor(note.id) : noteColor(`empty-slot-${slot}`)
   const hasLines = note ? noteHasLines(note.id) : false
   const rot = note ? noteRotation(note.id) : (slot === 0 ? -1 : 1)
   const allDone = note !== null && note.items.length > 0 && note.items.every(i => i.completed)
