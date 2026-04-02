@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useRef, useEffect, type FormEvent } from 'react'
 import { useStickyNotes, noteColor, noteHasLines, noteRotation, type NoteGroup } from '../../hooks/useStickyNotes'
 import type { Item } from '../../types'
 
@@ -44,7 +44,15 @@ function ActiveNote({ note, slot, onAdd, onToggle, onPromote, onDelete }: {
   onDelete: (id: string) => void
 }) {
   const [input, setInput] = useState('')
+  const [started, setStarted] = useState(false)
+  const pendingId = useRef(`note-${Date.now()}-${slot}`)
+  const inputRef = useRef<HTMLInputElement>(null)
   const allDone = note !== null && note.items.length > 0 && note.items.every(i => i.completed)
+
+  // Reset pending ID when a real note appears (so next empty slot gets a fresh ID)
+  useEffect(() => {
+    if (note) { setStarted(false); pendingId.current = `note-${Date.now()}-${slot}` }
+  }, [note, slot])
 
   function handleAdd(e: FormEvent) {
     e.preventDefault()
@@ -53,28 +61,29 @@ function ActiveNote({ note, slot, onAdd, onToggle, onPromote, onDelete }: {
     setInput('')
   }
 
-  // No note yet — show just a + button to start one
-  if (!note) {
+  function handleStart() {
+    setStarted(true)
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  // No note and not started — show + button
+  if (!note && !started) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[120px] rounded-xl border-2 border-dashed border-stone-200 text-stone-400">
-        <form onSubmit={handleAdd} className="flex flex-col items-center gap-2 w-full px-6">
-          <input type="text" value={input} onChange={e => setInput(e.target.value)}
-            placeholder="First item..."
-            className="w-full bg-transparent border-b border-stone-200 text-sm py-1 px-0 text-stone-600 placeholder:text-stone-300 focus:outline-none focus:border-sage-400 transition text-center" />
-          <button type="submit" disabled={!input.trim()}
-            className="w-8 h-8 rounded-full bg-stone-100 hover:bg-amber-100 text-stone-400 hover:text-amber-600 text-lg font-bold transition disabled:opacity-30">
-            +
-          </button>
-          <span className="text-[10px] text-stone-300">{slot === 0 ? 'Left' : 'Right'} note</span>
-        </form>
+        <button onClick={handleStart}
+          className="w-10 h-10 rounded-full bg-stone-100 hover:bg-amber-100 text-stone-400 hover:text-amber-600 text-xl font-bold transition hover:scale-110">
+          +
+        </button>
+        <span className="text-[10px] text-stone-300 mt-2">{slot === 0 ? 'Left' : 'Right'} note</span>
       </div>
     )
   }
 
-  // Has a note — show the colored sticky card
-  const color = noteColor(note.id)
-  const hasLines = noteHasLines(note.id)
-  const rot = noteRotation(note.id)
+  // Started (card visible) or has items — show the colored sticky card
+  const displayId = note?.id ?? pendingId.current
+  const color = noteColor(displayId)
+  const hasLines = noteHasLines(displayId)
+  const rot = noteRotation(displayId)
 
   return (
     <div
@@ -93,21 +102,25 @@ function ActiveNote({ note, slot, onAdd, onToggle, onPromote, onDelete }: {
 
       <div className="flex items-center justify-between mb-2 relative">
         <span className="text-xs font-medium opacity-50" style={{ color: color.text }}>Note {slot + 1}</span>
-        <span className="text-[10px] opacity-35" style={{ color: color.text }}>
-          {note.items.filter(i => i.completed).length}/{note.items.length}
-        </span>
+        {note && note.items.length > 0 && (
+          <span className="text-[10px] opacity-35" style={{ color: color.text }}>
+            {note.items.filter(i => i.completed).length}/{note.items.length}
+          </span>
+        )}
       </div>
 
-      <div className="space-y-0.5 mb-2 relative">
-        {note.items.map(item => (
-          <NoteItem key={item.id} item={item} color={color} onToggle={onToggle} onPromote={onPromote} onDelete={onDelete} />
-        ))}
-      </div>
+      {note && note.items.length > 0 && (
+        <div className="space-y-0.5 mb-2 relative">
+          {note.items.map(item => (
+            <NoteItem key={item.id} item={item} color={color} onToggle={onToggle} onPromote={onPromote} onDelete={onDelete} />
+          ))}
+        </div>
+      )}
 
       {!allDone && (
         <form onSubmit={handleAdd} className="flex gap-1 relative">
-          <input type="text" value={input} onChange={e => setInput(e.target.value)}
-            placeholder="Add to note..."
+          <input ref={inputRef} type="text" value={input} onChange={e => setInput(e.target.value)}
+            placeholder={note ? 'Add to note...' : 'First item...'}
             className="flex-1 bg-transparent border-b border-current/20 text-sm py-1 px-0 placeholder:opacity-25 focus:outline-none focus:border-current/40 transition"
             style={{ color: color.text }} />
           <button type="submit" disabled={!input.trim()} className="text-sm font-bold px-1.5 transition disabled:opacity-20" style={{ color: color.check }}>+</button>
