@@ -75,6 +75,7 @@ export default function PasswordGate({ onLogin, error }: Props) {
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
+            autoComplete="current-password"
             className="w-full px-4 py-3.5 rounded-xl border border-stone-200 bg-sage-50 text-stone-800 focus:outline-none focus:ring-2 focus:ring-sage-400 focus:border-transparent transition text-center tracking-widest"
             placeholder="Enter your password"
             autoFocus

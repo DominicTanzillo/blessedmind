@@ -5,10 +5,10 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 
 const BASE = process.env.SUPABASE_URL
-const KEY = process.env.SUPABASE_ANON_KEY
+const KEY = process.env.SUPABASE_KEY
 
 if (!BASE || !KEY) {
-  console.error('Missing SUPABASE_URL or SUPABASE_ANON_KEY env vars.')
+  console.error('Missing SUPABASE_URL or SUPABASE_KEY env vars.')
   process.exit(1)
 }
 
@@ -68,6 +68,10 @@ const record = {
   gardenArtifacts,
 }
 
+// Row-level security returns empty sets rather than erroring, so a key without
+// access looks exactly like an empty database. Detect that below.
+const everythingZero = tasksTotal === 0 && pomodoros === 0 && habitsActive === 0 && prayers === 0
+
 mkdirSync('stats', { recursive: true })
 
 // Append to the machine-readable log (one JSON object per line).
@@ -75,6 +79,15 @@ const jsonlPath = 'stats/history.jsonl'
 const existing = existsSync(jsonlPath)
   ? readFileSync(jsonlPath, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
   : []
+
+if (everythingZero && existing.some((r) => r.tasksTotal > 0)) {
+  console.error(
+    'Every count came back zero but earlier runs recorded data. The key in ' +
+    'SUPABASE_KEY is most likely blocked by row-level security — it needs to be ' +
+    'the service-role key. Refusing to overwrite the log with zeros.',
+  )
+  process.exit(1)
+}
 
 // Replace same-day entry if the job runs more than once in a day.
 const history = existing.filter((r) => r.date !== date)

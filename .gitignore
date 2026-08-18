@@ -5,3 +5,6 @@ dist
 *.tsbuildinfo
 blessedmind-plugin/
 *.mcpb
+blessedmind.zip
+*.zip
+private/

@@ -22,7 +22,7 @@ import Modal from './components/ui/Modal'
 import WaitingDatePrompt from './components/waiting/WaitingDatePrompt'
 
 export default function App() {
-  const { authenticated, login, logout, error } = useAuth()
+  const { authenticated, checking, login, logout, error } = useAuth()
   const { tasks, scoreableItems, parentMap, loading: tasksLoading, addTask, updateTask, completeTask, uncompleteTask, deleteTask, starTask, unstarTask, convertToWaiting, reactivateTask } = useItems()
   const {
     grinds,
@@ -111,6 +111,11 @@ export default function App() {
       })
     }
   }, [authenticated])
+
+  // Session restore is async — hold the sage ground rather than flashing the gate.
+  if (checking) {
+    return <div className="min-h-screen bg-sage-50" />
+  }
 
   if (!authenticated) {
     return <PasswordGate onLogin={login} error={error} />

@@ -24,7 +24,9 @@ jobs:
       - name: Collect stats from Supabase
         env:
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # Service role, not anon: the tables now require a signed-in session,
+          # and this job has no user to sign in as.
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/collect-stats.mjs
 
       - name: Commit changelog

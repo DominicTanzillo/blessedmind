@@ -18,7 +18,7 @@ jobs:
         run: |
           echo "Pinging $SUPABASE_URL ..."
           code=$(curl -s -o /dev/null -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/tasks?select=id&limit=1" \
+            "$SUPABASE_URL/rest/v1/items?select=id&limit=1" \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_ANON_KEY")
           echo "HTTP status: $code"
