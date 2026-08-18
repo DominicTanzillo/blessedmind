@@ -104,13 +104,16 @@ export default function App() {
     await updateTask(id, { waiting: false, completed: true, completed_at: new Date().toISOString() })
   }, [updateTask])
 
+  // Register on load rather than after sign-in. A device running a stale build
+  // needs to be able to pull the new one even when it can't get past the gate —
+  // gating this on `authenticated` made a broken login unfixable by updating.
   useEffect(() => {
-    if (authenticated && 'serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator) {
       import('virtual:pwa-register').then(({ registerSW }) => {
         registerSW({ immediate: true })
       })
     }
-  }, [authenticated])
+  }, [])
 
   // Session restore is async — hold the sage ground rather than flashing the gate.
   if (checking) {
