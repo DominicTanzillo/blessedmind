@@ -11,7 +11,7 @@
   //   npx wrangler kv namespace create OAUTH_KV
   // then paste the printed id below.
   "kv_namespaces": [
-    { "binding": "OAUTH_KV", "id": "PASTE_KV_NAMESPACE_ID_HERE" }
+    { "binding": "OAUTH_KV", "id": "8f910d2c6ead4f738a9c22d469d38e72" }
   ],
 
   // Non-secret. The project URL is public by design — it already ships in the
