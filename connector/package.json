@@ -1,0 +1,18 @@
+{
+  "name": "blessedmind-connector",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^0.10.3",
+    "@supabase/supabase-js": "^2.49.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
