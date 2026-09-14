@@ -1,0 +1,9 @@
+# Local-only secrets for `npx wrangler dev`. Copy to .dev.vars and fill in.
+# .dev.vars is gitignored — it must never be committed.
+#
+# These same three are set on the deployed Worker with `wrangler secret put`.
+# The email is treated as a secret because this repo is public and it is the
+# username half of the Supabase login.
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_EMAIL=the-email-of-your-supabase-auth-user
+SUPABASE_PASSWORD=the-supabase-account-password

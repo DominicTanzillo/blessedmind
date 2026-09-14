@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "blessedmind-connector",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+
+  // supabase-js reaches for a few Node built-ins.
+  "compatibility_flags": ["nodejs_compat"],
+
+  // OAuthProvider stores clients, grants and tokens here. Create with:
+  //   npx wrangler kv namespace create OAUTH_KV
+  // then paste the printed id below.
+  "kv_namespaces": [
+    { "binding": "OAUTH_KV", "id": "PASTE_KV_NAMESPACE_ID_HERE" }
+  ],
+
+  // Non-secret. The project URL is public by design — it already ships in the
+  // web app's JavaScript bundle, and since sql/002_require_auth.sql reaching it
+  // without a session grants nothing.
+  //
+  // The account email is NOT here on purpose: this repo is public, and the
+  // email is the username half of the Supabase login. It goes in with the
+  // secrets below.
+  "vars": {
+    "SUPABASE_URL": "https://lxpaqthbqnfnozuvcoaz.supabase.co",
+    "TIMEZONE": "America/New_York"
+  }
+
+  // Set these once, per deployment — never written to this file:
+  //   npx wrangler secret put SUPABASE_ANON_KEY
+  //   npx wrangler secret put SUPABASE_EMAIL
+  //   npx wrangler secret put SUPABASE_PASSWORD
+}

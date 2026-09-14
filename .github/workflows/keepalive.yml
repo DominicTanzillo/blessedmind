@@ -2,6 +2,14 @@ name: Supabase Keep-Alive
 
 # Free-tier Supabase projects pause after ~7 days of inactivity.
 # This pings the REST API a couple times a week to keep it awake.
+#
+# NOTE: this workflow only runs while GitHub keeps the schedule enabled, and
+# GitHub auto-disables scheduled workflows after 60 days without repository
+# activity. stats-log.yml exists partly to commit weekly and reset that clock,
+# but it skips committing when the numbers have not changed — so a quiet month
+# of app usage silently stops being activity. If you go that long without a
+# commit, push something before day 60 or this keep-alive dies quietly and the
+# database pauses a week later.
 on:
   schedule:
     - cron: '0 6 * * 1,4'   # 06:00 UTC every Monday and Thursday (max gap ~4 days)
@@ -17,13 +25,64 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
           echo "Pinging $SUPABASE_URL ..."
-          code=$(curl -s -o /dev/null -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/items?select=id&limit=1" \
-            -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
-          echo "HTTP status: $code"
-          if [ "$code" != "200" ]; then
-            echo "::error::Keep-alive ping failed (expected 200, got $code)"
+
+          # The free tier flaps: a single request can come back 500 or 502 while
+          # the project is perfectly healthy seconds later. Retrying keeps this
+          # job from crying wolf. The ping counts as activity either way, so the
+          # retries are about signal quality, not about staying awake.
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -s -o /tmp/body.txt -w "%{http_code}" --max-time 30 \
+              "$SUPABASE_URL/rest/v1/items?select=id&limit=1" \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY") || code=000
+            echo "  attempt $attempt: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "Project is awake."
+              exit 0
+            fi
+            sleep 15
+          done
+
+          echo "::error::Keep-alive failed 5 times (last HTTP $code)."
+          echo "Body: $(head -c 200 /tmp/body.txt)"
+          exit 1
+
+  # The connector is what the phone talks to. Cloudflare Workers never sleep, so
+  # this is not a keep-alive — it is an early warning that the thing is broken,
+  # found on a Monday rather than when you reach for your phone.
+  # Skipped until CONNECTOR_URL is set as a repository secret.
+  connector:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the connector is reachable and still refusing anonymous callers
+        env:
+          CONNECTOR_URL: ${{ secrets.CONNECTOR_URL }}
+        run: |
+          if [ -z "$CONNECTOR_URL" ]; then
+            echo "CONNECTOR_URL secret not set — skipping. (Set it after deploying.)"
+            exit 0
+          fi
+
+          base="${CONNECTOR_URL%/mcp}"
+          base="${base%/}"
+
+          meta=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            "$base/.well-known/oauth-protected-resource")
+          echo "OAuth metadata: HTTP $meta"
+
+          # No token must still mean no data. If this ever returns 200 the
+          # connector has been left wide open and needs immediate attention.
+          unauth=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            -X POST "$base/mcp" -H 'content-type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
+          echo "Unauthenticated /mcp: HTTP $unauth"
+
+          if [ "$meta" != "200" ]; then
+            echo "::error::Connector metadata unreachable (HTTP $meta)."
             exit 1
           fi
-          echo "Project is awake."
+          if [ "$unauth" != "401" ]; then
+            echo "::error::Unauthenticated /mcp returned $unauth, expected 401. The connector may be exposed."
+            exit 1
+          fi
+          echo "Connector up, and still closed to anonymous callers."
