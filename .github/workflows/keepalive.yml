@@ -10,34 +10,49 @@ name: Supabase Keep-Alive
 # of app usage silently stops being activity. If you go that long without a
 # commit, push something before day 60 or this keep-alive dies quietly and the
 # database pauses a week later.
+#
+# The project paused on 2026-10-05 even though the anon-key ping had succeeded
+# four days earlier. Under RLS an anonymous read returns zero rows, which may
+# not register as activity, so the ping now reads real rows with the service
+# role key and runs daily. A failure opens a GitHub issue (which emails you);
+# the next success closes it.
 on:
   schedule:
-    - cron: '0 6 * * 1,4'   # 06:00 UTC every Monday and Thursday (max gap ~4 days)
+    - cron: '0 6 * * *'     # 06:00 UTC daily
   workflow_dispatch:          # allow manual runs from the Actions tab
+
+permissions:
+  issues: write
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase REST API
+      - name: Read a real row from the database
         env:
           SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           echo "Pinging $SUPABASE_URL ..."
 
           # The free tier flaps: a single request can come back 500 or 502 while
           # the project is perfectly healthy seconds later. Retrying keeps this
-          # job from crying wolf. The ping counts as activity either way, so the
-          # retries are about signal quality, not about staying awake.
+          # job from crying wolf.
           for attempt in 1 2 3 4 5; do
+            : > /tmp/body.txt
             code=$(curl -s -o /tmp/body.txt -w "%{http_code}" --max-time 30 \
               "$SUPABASE_URL/rest/v1/items?select=id&limit=1" \
-              -H "apikey: $SUPABASE_ANON_KEY" \
-              -H "Authorization: Bearer $SUPABASE_ANON_KEY") || code=000
+              -H "apikey: $SERVICE_KEY" \
+              -H "Authorization: Bearer $SERVICE_KEY") || code=000
             echo "  attempt $attempt: HTTP $code"
             if [ "$code" = "200" ]; then
-              echo "Project is awake."
+              # An empty array means the table exists but holds nothing, which
+              # for this app means the data is gone, not that all is well.
+              if [ "$(head -c 2 /tmp/body.txt)" = "[]" ]; then
+                echo "::error::Database is awake but the items table is empty."
+                exit 1
+              fi
+              echo "Project is awake and items has data."
               exit 0
             fi
             sleep 15
@@ -45,7 +60,40 @@ jobs:
 
           echo "::error::Keep-alive failed 5 times (last HTTP $code)."
           echo "Body: $(head -c 200 /tmp/body.txt)"
+          if grep -q PGRST205 /tmp/body.txt; then
+            echo "::error::PGRST205 (table not in schema cache). If the project was just restored, run: notify pgrst, 'reload schema';"
+          fi
           exit 1
+
+  # Turn failures into a GitHub issue, so a pause gets noticed within a day
+  # instead of when the app stops loading. Closes itself on the next success.
+  alert:
+    needs: [ping, connector]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or close the keep-alive issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FAILED: ${{ needs.ping.result == 'failure' || needs.connector.result == 'failure' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Supabase keep-alive failing"
+          open=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+
+          if [ "$FAILED" = "true" ]; then
+            body="Keep-alive failed: $RUN_URL
+
+          Check the Supabase dashboard for a paused project and click Restore. Then run \`notify pgrst, 'reload schema';\` in the SQL editor."
+            if [ -n "$open" ]; then
+              gh issue comment "$open" --body "Still failing: $RUN_URL"
+            else
+              gh issue create --title "$title" --body "$body"
+            fi
+          elif [ -n "$open" ]; then
+            gh issue close "$open" --comment "Recovered: $RUN_URL"
+          fi
 
   # The connector is what the phone talks to. Cloudflare Workers never sleep, so
   # this is not a keep-alive — it is an early warning that the thing is broken,
